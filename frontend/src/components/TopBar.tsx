@@ -41,14 +41,28 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         </Button>
         
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg ${
+            user?.role === 'vendor' 
+              ? 'bg-gradient-to-br from-green-500 to-teal-600' 
+              : user?.role === 'admin'
+              ? 'bg-gradient-to-br from-red-500 to-orange-600'
+              : 'bg-gradient-to-br from-blue-500 to-purple-600'
+          }`}>
             <SparklesIcon className="w-6 h-6 text-white" strokeWidth={2.5} />
           </div>
           <div className="hidden sm:block">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              Student Deals
+            <h1 className={`text-xl font-bold bg-clip-text text-transparent ${
+              user?.role === 'vendor'
+                ? 'bg-gradient-to-r from-green-600 to-teal-600'
+                : user?.role === 'admin'
+                ? 'bg-gradient-to-r from-red-600 to-orange-600'
+                : 'bg-gradient-to-r from-blue-600 to-purple-600'
+            }`}>
+              {user?.role === 'vendor' ? 'Vendor Portal' : user?.role === 'admin' ? 'Admin Panel' : 'Student Deals'}
             </h1>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Save More, Study Better 📚</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              {user?.role === 'vendor' ? 'Grow with students 🚀' : user?.role === 'admin' ? 'Manage platform 🛡️' : 'Save More, Study Better 📚'}
+            </p>
           </div>
         </div>
       </div>
@@ -69,34 +83,78 @@ export function TopBar({ onMenuClick }: TopBarProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-3 hover:bg-blue-100 dark:hover:bg-blue-900 px-3 py-2 rounded-xl transition-all">
-              <Avatar className="w-10 h-10 border-2 border-blue-500 shadow-lg">
+            <button className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${
+              user?.role === 'vendor'
+                ? 'hover:bg-green-100 dark:hover:bg-green-900'
+                : user?.role === 'admin'
+                ? 'hover:bg-red-100 dark:hover:bg-red-900'
+                : 'hover:bg-blue-100 dark:hover:bg-blue-900'
+            }`}>
+              <Avatar className={`w-10 h-10 border-2 shadow-lg ${
+                user?.role === 'vendor'
+                  ? 'border-green-500'
+                  : user?.role === 'admin'
+                  ? 'border-red-500'
+                  : 'border-blue-500'
+              }`}>
                 <AvatarImage src="" alt={user?.name} />
-                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
-                  {user?.name?.split(' ').map(n => n[0]).join('') || 'ST'}
+                <AvatarFallback className={`bg-gradient-to-br text-white font-semibold ${
+                  user?.role === 'vendor'
+                    ? 'from-green-500 to-teal-600'
+                    : user?.role === 'admin'
+                    ? 'from-red-500 to-orange-600'
+                    : 'from-blue-500 to-purple-600'
+                }`}>
+                  {user?.role === 'vendor' 
+                    ? (user?.companyName?.split(' ').map(n => n[0]).join('') || 'V').toUpperCase()
+                    : (user?.name?.split(' ').map(n => n[0]).join('') || 'U').toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden md:block text-left">
-                <p className="text-sm font-semibold text-foreground">{user?.name || 'Student'}</p>
-                <p className="text-xs text-muted-foreground">{user?.university || 'University'}</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {user?.role === 'vendor' 
+                    ? user?.companyName || user?.name || 'Vendor'
+                    : user?.name || 'User'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {user?.role === 'vendor' 
+                    ? user?.name || 'Owner' 
+                    : user?.role === 'admin'
+                    ? 'Administrator'
+                    : user?.university || 'Student'}
+                </p>
               </div>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 bg-white dark:bg-gray-800 border-blue-200 dark:border-blue-900">
+          <DropdownMenuContent align="end" className={`w-56 bg-white dark:bg-gray-800 ${
+            user?.role === 'vendor'
+              ? 'border-green-200 dark:border-green-900'
+              : user?.role === 'admin'
+              ? 'border-red-200 dark:border-red-900'
+              : 'border-blue-200 dark:border-blue-900'
+          }`}>
             <DropdownMenuLabel className="text-foreground">
               <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium">{user?.name || 'Student'}</p>
+                <p className="text-sm font-medium">{user?.name || 'User'}</p>
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
+                <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
-              onClick={() => navigate('/account')}
-              className="text-foreground cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900"
+              onClick={() => navigate(user?.role === 'vendor' ? '/vendor/profile' : user?.role === 'admin' ? '/admin/dashboard' : '/account')}
+              className={`text-foreground cursor-pointer ${
+                user?.role === 'vendor'
+                  ? 'hover:bg-green-50 dark:hover:bg-green-900'
+                  : user?.role === 'admin'
+                  ? 'hover:bg-red-50 dark:hover:bg-red-900'
+                  : 'hover:bg-blue-50 dark:hover:bg-blue-900'
+              }`}
             >
               <UserIcon className="w-4 h-4 mr-2" strokeWidth={2} />
               My Profile
             </DropdownMenuItem>
+            {user?.role === 'student' && (
             <DropdownMenuItem 
               onClick={() => navigate('/discounts')}
               className="text-foreground cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900"
@@ -104,9 +162,16 @@ export function TopBar({ onMenuClick }: TopBarProps) {
               <HeartIcon className="w-4 h-4 mr-2" strokeWidth={2} />
               Saved Offers
             </DropdownMenuItem>
+            )}
             <DropdownMenuItem 
-              onClick={() => navigate('/account')}
-              className="text-foreground cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900"
+              onClick={() => navigate(user?.role === 'vendor' ? '/vendor/settings' : user?.role === 'admin' ? '/admin/dashboard' : '/account')}
+              className={`text-foreground cursor-pointer ${
+                user?.role === 'vendor'
+                  ? 'hover:bg-green-50 dark:hover:bg-green-900'
+                  : user?.role === 'admin'
+                  ? 'hover:bg-red-50 dark:hover:bg-red-900'
+                  : 'hover:bg-blue-50 dark:hover:bg-blue-900'
+              }`}
             >
               <SettingsIcon className="w-4 h-4 mr-2" strokeWidth={2} />
               Settings

@@ -89,6 +89,37 @@ export function SignupForm() {
   const handleStudentSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate name length (minimum 3 characters)
+    if (!studentData.name || studentData.name.trim().length < 3) {
+      toast({
+        title: "❌ Invalid name",
+        description: "Name must be at least 3 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(studentData.email)) {
+      toast({
+        title: "❌ Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate password length (minimum 6 characters)
+    if (!studentData.password || studentData.password.length < 6) {
+      toast({
+        title: "❌ Weak password",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (studentData.password !== studentData.confirmPassword) {
       toast({
         title: "❌ Passwords don't match",
@@ -118,26 +149,36 @@ export function SignupForm() {
 
     setLoading(true);
 
-    const success = await signup(
-      studentData.email,
-      studentData.password,
-      studentData.name,
-      'student',
-      { university: studentData.university }
-    );
+    try {
+      const success = await signup(
+        studentData.email,
+        studentData.password,
+        studentData.name,
+        'student',
+        { university: studentData.university }
+      );
 
-    setLoading(false);
+      setLoading(false);
 
-    if (success) {
+      if (success) {
+        toast({
+          title: "🎉 Welcome to Student Deals!",
+          description: "Your account has been created. Start saving now!",
+        });
+        navigate('/dashboard');
+      } else {
+        toast({
+          title: "❌ Signup failed",
+          description: "Please try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setLoading(false);
+      const errorMsg = error instanceof Error ? error.message : 'Signup failed. Please try again.';
       toast({
-        title: "🎉 Welcome to Student Deals!",
-        description: "Your account has been created. Start saving now!",
-      });
-      navigate('/dashboard');
-    } else {
-      toast({
-        title: "❌ Signup failed",
-        description: "Please try again",
+        title: "❌ Signup error",
+        description: errorMsg,
         variant: "destructive",
       });
     }
@@ -145,6 +186,47 @@ export function SignupForm() {
 
   const handleVendorSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate owner name (minimum 3 characters)
+    if (!vendorData.ownerName || vendorData.ownerName.trim().length < 3) {
+      toast({
+        title: "❌ Invalid owner name",
+        description: "Owner name must be at least 3 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate business name
+    if (!vendorData.businessName || vendorData.businessName.trim().length < 2) {
+      toast({
+        title: "❌ Invalid business name",
+        description: "Business name must be at least 2 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(vendorData.email)) {
+      toast({
+        title: "❌ Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate password length (minimum 6 characters)
+    if (!vendorData.password || vendorData.password.length < 6) {
+      toast({
+        title: "❌ Weak password",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (vendorData.password !== vendorData.confirmPassword) {
       toast({
@@ -175,26 +257,36 @@ export function SignupForm() {
 
     setLoading(true);
 
-    const success = await signup(
-      vendorData.email,
-      vendorData.password,
-      vendorData.ownerName,
-      'vendor',
-      { companyName: vendorData.businessName }
-    );
+    try {
+      const success = await signup(
+        vendorData.email,
+        vendorData.password,
+        vendorData.ownerName,
+        'vendor',
+        { companyName: vendorData.businessName }
+      );
 
-    setLoading(false);
+      setLoading(false);
 
-    if (success) {
+      if (success) {
+        toast({
+          title: "🚀 Welcome to Student Deals!",
+          description: "Your vendor account is ready. Let's grow together!",
+        });
+        navigate('/vendor/dashboard');
+      } else {
+        toast({
+          title: "❌ Signup failed",
+          description: "Please try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setLoading(false);
+      const errorMsg = error instanceof Error ? error.message : 'Signup failed. Please try again.';
       toast({
-        title: "🚀 Welcome to Student Deals!",
-        description: "Your vendor account is ready. Let's grow together!",
-      });
-      navigate('/vendor/dashboard');
-    } else {
-      toast({
-        title: "❌ Signup failed",
-        description: "Please try again",
+        title: "❌ Signup error",
+        description: errorMsg,
         variant: "destructive",
       });
     }

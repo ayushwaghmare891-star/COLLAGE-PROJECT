@@ -6,11 +6,15 @@ import { Label } from '../ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { TagIcon, PercentIcon, CalendarIcon, FileTextIcon, ImageIcon, CheckCircleIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
+import { useAuthStore } from '../../stores/authStore';
 import { useToast } from '../../hooks/use-toast';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export function AddOffer() {
   const navigate = useNavigate();
   const { addVendorDiscount } = useAppStore();
+  const { token } = useAuthStore();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -62,38 +66,77 @@ export function AddOffer() {
 
   const confirmPublish = async () => {
     setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const expiryDays = Math.ceil(
-      (new Date(formData.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-    );
+    try {
+      // Prepare offer data
+      const offerData = {
+        title: formData.title,
+        description: formData.description,
+        offerType: formData.discountType === 'percentage' ? 'percentage' : 'fixed',
+        offerValue: parseFloat(formData.discountValue),
+        category: formData.category,
+        startDate: new Date().toISOString(),
+        endDate: new Date(formData.expiryDate).toISOString(),
+        terms: formData.terms,
+      };
 
-    const discountText = formData.discountType === 'percentage' 
-      ? `${formData.discountValue}% off`
-      : `$${formData.discountValue} off`;
+      // Send to backend
+      const response = await fetch(`${API_BASE_URL}/offers/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(offerData),
+      });
 
-    addVendorDiscount({
-      vendorId: 'vendor1',
-      brand: formData.title,
-      discount: discountText,
-      description: formData.description,
-      category: formData.category,
-      expiryDays: expiryDays,
-      isExpired: false,
-      isUsed: false,
-      termsAndConditions: formData.terms,
-      isActive: true,
-    });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create offer');
+      }
 
-    setLoading(false);
-    setShowConfirmation(false);
+      const result = await response.json();
 
-    toast({
-      title: "Offer published!",
-      description: "Your discount offer is now live for students",
-    });
+      // Also add to local store for immediate UI update
+      const expiryDays = Math.ceil(
+        (new Date(formData.expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+      );
 
-    navigate('/vendor/offers');
+      const discountText = formData.discountType === 'percentage' 
+        ? `${formData.discountValue}% off`
+        : `$${formData.discountValue} off`;
+
+      addVendorDiscount({
+        vendorId: result.vendor?.vendorId || 'vendor1',
+        brand: formData.title,
+        discount: discountText,
+        description: formData.description,
+        category: formData.category,
+        expiryDays: expiryDays,
+        isExpired: false,
+        isUsed: false,
+        termsAndConditions: formData.terms,
+        isActive: true,
+      });
+
+      setLoading(false);
+      setShowConfirmation(false);
+
+      toast({
+        title: "Offer published!",
+        description: "Your discount offer is now live for students",
+      });
+
+      navigate('/vendor/offers');
+    } catch (error) {
+      setLoading(false);
+      console.error('Error creating offer:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to create offer',
+        variant: "destructive",
+      });
+    }
   };
 
   const categories = [

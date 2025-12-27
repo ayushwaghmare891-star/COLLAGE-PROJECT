@@ -1,19 +1,52 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { useNavigate } from 'react-router-dom';
 import { TagIcon, TrendingUpIcon, EyeIcon, UsersIcon, ClockIcon, PlusIcon, AlertCircleIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { useAuthStore } from '../../stores/authStore';
+import { fetchVendorOffers } from '../../lib/offerAPI';
 
 export function VendorDashboard() {
   const navigate = useNavigate();
-  const { vendorDiscounts } = useAppStore();
-  const { user } = useAuthStore();
+  const { vendorDiscounts, setVendorDiscounts } = useAppStore();
+  const { user, token } = useAuthStore();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, []);
+    
+    // Fetch vendor offers on component mount
+    const loadOffers = async () => {
+      if (!token) return;
+      try {
+        const data = await fetchVendorOffers(token);
+        const offers = data.offers?.map((offer: any) => ({
+          id: offer._id,
+          vendorId: offer.vendorId?._id || 'vendor1',
+          brand: offer.title,
+          discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `$${offer.offerValue} off`,
+          description: offer.description,
+          category: offer.category,
+          expiryDays: Math.ceil((new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
+          isExpired: new Date(offer.endDate) < new Date(),
+          isUsed: false,
+          termsAndConditions: offer.terms || '',
+          createdAt: offer.createdAt,
+          usageCount: 0,
+          totalViews: 0,
+          isActive: offer.isActive,
+        })) || [];
+        setVendorDiscounts(offers);
+      } catch (error) {
+        console.error('Failed to load offers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadOffers();
+  }, [token, setVendorDiscounts]);
 
   const activeDiscounts = vendorDiscounts.filter(d => d.isActive).length;
   const totalViews = vendorDiscounts.reduce((sum, d) => sum + d.totalViews, 0);

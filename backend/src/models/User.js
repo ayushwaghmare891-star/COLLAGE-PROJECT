@@ -1,105 +1,183 @@
 import mongoose from 'mongoose';
+import { hashPassword } from '../utils/password.js';
 
-const userSchema = new mongoose.Schema(
+// Admin Schema - For administrative users only
+const adminSchema = new mongoose.Schema(
   {
+    adminId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      uppercase: true,
+      // Format: ADM-YYYYMMDD-XXXXX (auto-generated)
+    },
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      minlength: 3,
+    },
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: true,
       unique: true,
       lowercase: true,
-      trim: true,
-      match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email'],
+      match: [/.+\@.+\..+/, 'Please fill a valid email address'],
     },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: true,
       minlength: 6,
-      select: false,
     },
-    name: {
+    firstName: {
       type: String,
-      required: [true, 'Name is required'],
-      trim: true,
+      required: true,
+      default: '',
     },
-    role: {
+    lastName: {
       type: String,
-      enum: ['student', 'vendor', 'admin'],
-      default: 'student',
+      default: '',
     },
-    university: {
+    profileImage: {
       type: String,
-      trim: true,
+      default: '',
     },
-    companyName: {
-      type: String,
-      trim: true,
-    },
-    companyRegistration: {
-      type: String,
-      trim: true,
-    },
-    isVerified: {
+    isEmailVerified: {
       type: Boolean,
       default: false,
     },
-    verificationStatus: {
+    role: {
       type: String,
-      enum: ['pending', 'verified', 'rejected'],
-      default: 'pending',
+      enum: ['admin'],
+      default: 'admin',
     },
-    verificationMethod: {
+    status: {
       type: String,
-      enum: ['email', 'student-id', 'sheerid'],
-      default: 'email',
+      enum: ['active', 'inactive', 'suspended'],
+      default: 'active',
     },
-    verificationCode: String,
-    verificationCodeExpires: Date,
-    studentIdUrl: {
-      type: String,
-      default: null,
-    },
-    sheerIdVerificationId: String,
-    verificationToken: String,
-    verificationTokenExpires: Date,
-    profilePicture: {
-      type: String,
-      default: null,
-    },
-    phoneNumber: {
-      type: String,
-      trim: true,
-    },
-    address: {
-      type: String,
-      trim: true,
-    },
-    city: {
-      type: String,
-      trim: true,
-    },
-    state: {
-      type: String,
-      trim: true,
-    },
-    zipCode: {
-      type: String,
-      trim: true,
-    },
-    isActive: {
+    isOnline: {
       type: Boolean,
-      default: true,
+      default: false,
     },
-    lastLogin: Date,
-    createdAt: {
+    lastLogin: {
       type: Date,
-      default: Date.now,
+      default: null,
     },
-    updatedAt: {
-      type: Date,
-      default: Date.now,
+    permissions: {
+      type: [String],
+      default: ['manage_users', 'manage_vendors', 'manage_students', 'view_analytics'],
     },
   },
   { timestamps: true }
 );
 
+// Hash password before saving
+adminSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+  
+  try {
+    this.password = await hashPassword(this.password);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Auto-generate adminId before saving (if not already set)
+adminSchema.pre('save', async function (next) {
+  if (!this.adminId) {
+    try {
+      const date = new Date();
+      const dateStr = date.toISOString().split('T')[0].replace(/-/g, '');
+      const count = await mongoose.model('Admin').countDocuments();
+      const randomNum = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+      this.adminId = `ADM-${dateStr}-${randomNum}`;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  } else {
+    next();
+  }
+});
+
+// Regular User Schema - For general users
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      minlength: 3,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      match: [/.+\@.+\..+/, 'Please fill a valid email address'],
+    },
+    password: {
+      type: String,
+      required: true,
+      minlength: 6,
+    },
+    firstName: {
+      type: String,
+      default: '',
+    },
+    lastName: {
+      type: String,
+      default: '',
+    },
+    profileImage: {
+      type: String,
+      default: '',
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    role: {
+      type: String,
+      enum: ['user'],
+      default: 'user',
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'suspended'],
+      default: 'active',
+    },
+    isOnline: {
+      type: Boolean,
+      default: false,
+    },
+    lastLogin: {
+      type: Date,
+      default: null,
+    },
+  },
+  { timestamps: true }
+);
+
+// Hash password before saving
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
+  }
+  
+  try {
+    this.password = await hashPassword(this.password);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+export const Admin = mongoose.model('Admin', adminSchema);
 export const User = mongoose.model('User', userSchema);

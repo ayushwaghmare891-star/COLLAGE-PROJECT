@@ -23,19 +23,31 @@ export const verificationAPI = {
     }
 
     const url = `${API_BASE_URL}/verification/upload-student-id`;
-    const response = await fetch(url, {
-      method: 'POST',
-      body: formData,
-      headers,
-      credentials: 'include',
-    });
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        headers,
+        credentials: 'include',
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `Upload failed: ${response.status}`);
+      if (!response.ok) {
+        let errorMessage = `Upload failed: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {
+          // Response is not JSON
+        }
+        throw new Error(errorMessage);
+      }
+
+      return await response.json();
+    } catch (error: any) {
+      console.error('File upload error:', error);
+      throw error;
     }
-
-    return await response.json();
   },
 
   // Initiate SheerID verification

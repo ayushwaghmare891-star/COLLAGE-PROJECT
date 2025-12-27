@@ -5,19 +5,59 @@ import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
 
-import { ShieldCheckIcon, TagIcon, TrendingUpIcon, ClockIcon, SparklesIcon, SearchIcon, MapPinIcon, HeartIcon, FilterIcon } from 'lucide-react';
+import { ShieldCheckIcon, TagIcon, TrendingUpIcon, ClockIcon, SparklesIcon, SearchIcon, MapPinIcon, HeartIcon, FilterIcon, RefreshCwIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { useAuthStore } from '../../stores/authStore';
+import { fetchAllActiveOffers } from '../../lib/offerAPI';
 
 export function DashboardView() {
   const navigate = useNavigate();
-  const { verificationStatus, discounts } = useAppStore();
+  const { verificationStatus, discounts, setAllOffers } = useAppStore();
   const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const loadOffers = async (showLoading = true) => {
+    if (showLoading) setIsRefreshing(true);
+    try {
+      const data = await fetchAllActiveOffers();
+      const offers = data.offers?.map((offer: any) => ({
+        id: offer._id,
+        vendorId: offer.vendorId?._id || offer.vendorId,
+        brand: offer.title,
+        discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `$${offer.offerValue} off`,
+        description: offer.description,
+        category: offer.category,
+        expiryDays: Math.ceil((new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
+        isExpired: new Date(offer.endDate) < new Date(),
+        isUsed: false,
+        termsAndConditions: offer.terms || '',
+        createdAt: offer.createdAt,
+        usageCount: offer.usedCount || 0,
+        totalViews: 0,
+        isActive: offer.isActive,
+        code: offer.code,
+      })) || [];
+      setAllOffers(offers);
+    } catch (error) {
+      console.error('Failed to load offers:', error);
+    } finally {
+      if (showLoading) setIsRefreshing(false);
+    }
+  };
+
+  // Fetch offers on component mount
   useEffect(() => {
     window.scrollTo(0, 0);
+    loadOffers();
+
+    // Set up auto-refresh every 30 seconds to get new vendor offers
+    const interval = setInterval(() => {
+      loadOffers(false); // Silent refresh without loading state
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const activeDiscounts = discounts.filter(d => !d.isExpired).length;
@@ -73,6 +113,13 @@ export function DashboardView() {
                 className="w-full pl-12 pr-4 py-4 bg-white/95 backdrop-blur-sm border-0 rounded-2xl text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-white shadow-lg"
               />
             </div>
+            <Button 
+              onClick={() => loadOffers()}
+              disabled={isRefreshing}
+              className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 h-auto rounded-2xl shadow-lg font-semibold disabled:opacity-70">
+              <RefreshCwIcon className={`w-5 h-5 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} strokeWidth={2} />
+              {isRefreshing ? 'Loading...' : 'Refresh'}
+            </Button>
             <Button className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-4 h-auto rounded-2xl shadow-lg font-semibold">
               <MapPinIcon className="w-5 h-5 mr-2" strokeWidth={2} />
               Near Me

@@ -1,142 +1,152 @@
 import { User } from '../models/User.js';
-import { Discount } from '../models/Discount.js';
 
-export const getPendingVendors = async (req, res) => {
+export const getAllUsers = async (req, res) => {
   try {
-    const vendors = await User.find({ role: 'vendor', isVerified: false }).select('-password');
-
-    res.status(200).json({
-      success: true,
-      count: vendors.length,
-      vendors,
-    });
+    const users = await User.find().select('-password');
+    res.json({ message: 'Users fetched successfully', users });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error fetching pending vendors',
-    });
+    res.status(500).json({ message: 'Error fetching users', error: error.message });
   }
 };
 
-export const verifyVendor = async (req, res) => {
+export const getUserById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const user = await User.findById(req.params.id).select('-password');
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ message: 'User fetched successfully', user });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching user', error: error.message });
+  }
+};
+
+export const updateUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    // Validate role
+    const validRoles = ['user', 'student', 'vendor', 'admin'];
+    if (!role || !validRoles.includes(role)) {
+      return res.status(400).json({ 
+        message: 'Invalid role. Allowed roles: user, student, vendor, admin' 
+      });
+    }
+
+    // Prevent changing admin role (only ADMIN_EMAIL can be admin)
+    const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ayushwaghmare777@gmail.com';
+    if (role === 'admin') {
+      const user = await User.findById(req.params.id);
+      if (user.email !== ADMIN_EMAIL) {
+        return res.status(403).json({ 
+          message: `Only ${ADMIN_EMAIL} can have admin role` 
+        });
+      }
+    }
 
     const user = await User.findByIdAndUpdate(
-      id,
-      { isVerified: true, updatedAt: new Date() },
+      req.params.id,
+      { role },
       { new: true }
     ).select('-password');
 
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Vendor verified successfully',
+    res.json({ 
+      message: 'User role updated successfully', 
       user,
+      previousRole: user.role,
+      newRole: role
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error verifying vendor',
-    });
+    res.status(500).json({ message: 'Error updating user role', error: error.message });
   }
 };
 
-export const rejectVendor = async (req, res) => {
+export const updateUserStatus = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { status } = req.body;
 
-    await User.findByIdAndDelete(id);
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    ).select('-password');
 
-    res.status(200).json({
-      success: true,
-      message: 'Vendor rejected and removed',
-    });
+    res.json({ message: 'User status updated successfully', user });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error rejecting vendor',
-    });
+    res.status(500).json({ message: 'Error updating user status', error: error.message });
   }
 };
 
-export const getAnalytics = async (req, res) => {
+export const deleteUser = async (req, res) => {
   try {
-    const totalUsers = await User.countDocuments();
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting user', error: error.message });
+  }
+};
+
+export const getStudents = async (req, res) => {
+  try {
+    const students = await User.find({ role: 'student' }).select('-password');
+    res.json({ 
+      message: 'Students fetched successfully', 
+      count: students.length,
+      students 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching students', error: error.message });
+  }
+};
+
+export const getVendors = async (req, res) => {
+  try {
+    const vendors = await User.find({ role: 'vendor' }).select('-password');
+    res.json({ 
+      message: 'Vendors fetched successfully', 
+      count: vendors.length,
+      vendors 
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching vendors', error: error.message });
+  }
+};
+
+export const getActiveUsers = async (req, res) => {
+  try {
+    // Get counts of online users by role
+    const onlineStudents = await User.countDocuments({ role: 'student', isOnline: true });
+    const onlineVendors = await User.countDocuments({ role: 'vendor', isOnline: true });
     const totalStudents = await User.countDocuments({ role: 'student' });
     const totalVendors = await User.countDocuments({ role: 'vendor' });
-    const verifiedVendors = await User.countDocuments({ role: 'vendor', isVerified: true });
-    const totalDiscounts = await Discount.countDocuments();
-    const activeDiscounts = await Discount.countDocuments({ isActive: true, isExpired: false });
+    const totalUsers = await User.countDocuments({});
+    const onlineUsers = await User.countDocuments({ isOnline: true });
 
-    // Calculate total redemptions
-    const discounts = await Discount.find();
-    const totalRedemptions = discounts.reduce((sum, d) => sum + d.usageCount, 0);
-    const totalViews = discounts.reduce((sum, d) => sum + d.totalViews, 0);
-
-    res.status(200).json({
-      success: true,
-      analytics: {
-        users: {
-          total: totalUsers,
-          students: totalStudents,
-          vendors: totalVendors,
-          verifiedVendors,
+    res.json({
+      message: 'Active users fetched successfully',
+      stats: {
+        totalUsers,
+        onlineUsers,
+        offlineUsers: totalUsers - onlineUsers,
+        students: {
+          total: totalStudents,
+          online: onlineStudents,
+          offline: totalStudents - onlineStudents,
         },
-        discounts: {
-          total: totalDiscounts,
-          active: activeDiscounts,
-          totalRedemptions,
-          totalViews,
-        },
-      },
+        vendors: {
+          total: totalVendors,
+          online: onlineVendors,
+          offline: totalVendors - onlineVendors,
+        }
+      }
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error fetching analytics',
-    });
-  }
-};
-
-export const getVendorAnalytics = async (req, res) => {
-  try {
-    const vendorId = req.user.userId;
-
-    const vendorDiscounts = await Discount.find({ vendorId });
-    const totalDiscounts = vendorDiscounts.length;
-    const activeDiscounts = vendorDiscounts.filter((d) => d.isActive && !d.isExpired).length;
-    const totalRedemptions = vendorDiscounts.reduce((sum, d) => sum + d.usageCount, 0);
-    const totalViews = vendorDiscounts.reduce((sum, d) => sum + d.totalViews, 0);
-
-    // Group by category
-    const byCategory = {};
-    vendorDiscounts.forEach((discount) => {
-      byCategory[discount.category] = (byCategory[discount.category] || 0) + 1;
-    });
-
-    res.status(200).json({
-      success: true,
-      analytics: {
-        totalDiscounts,
-        activeDiscounts,
-        totalRedemptions,
-        totalViews,
-        averageViews: totalDiscounts > 0 ? (totalViews / totalDiscounts).toFixed(2) : 0,
-        averageRedemptions: totalDiscounts > 0 ? (totalRedemptions / totalDiscounts).toFixed(2) : 0,
-        byCategory,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error fetching vendor analytics',
-    });
+    res.status(500).json({ message: 'Error fetching active users', error: error.message });
   }
 };

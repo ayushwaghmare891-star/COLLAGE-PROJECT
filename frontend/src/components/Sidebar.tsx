@@ -5,6 +5,7 @@ import { Separator } from './ui/separator';
 import { Badge } from './ui/badge';
 import { useAuthStore } from '../stores/authStore';
 import { useAppStore } from '../stores/appStore';
+import { useSavedStore } from '../stores/savedStore';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
   const { logout, user } = useAuthStore();
   const { verificationStatus } = useAppStore();
+  const { savedItems } = useSavedStore();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -25,7 +27,7 @@ export function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
   const navItems = [
     { to: '/dashboard', icon: LayoutDashboardIcon, label: 'Home', emoji: '🏠', badge: null },
     { to: '/discounts', icon: TagIcon, label: 'All Offers', emoji: '🎁', badge: '50+' },
-    { to: '/saved', icon: HeartIcon, label: 'Saved', emoji: '❤️', badge: '3' },
+    { to: '/saved', icon: HeartIcon, label: 'Saved', emoji: '❤️', badge: savedItems.length > 0 ? savedItems.length.toString() : null },
     { to: '/verification', icon: ShieldCheckIcon, label: 'Verification', emoji: '✅', badge: verificationStatus === 'pending' ? '!' : null },
     { to: '/account', icon: UserIcon, label: 'Profile', emoji: '👤', badge: null },
   ];

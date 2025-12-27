@@ -1,209 +1,165 @@
-import { User } from '../models/User.js';
-import { hashPassword, comparePassword } from '../utils/password.js';
+import { Admin } from '../models/User.js';
+import { comparePassword, hashPassword } from '../utils/password.js';
 import { generateToken } from '../utils/jwt.js';
 
-export const signup = async (req, res) => {
+// Admin Registration - Only for authorized admins (typically created by system)
+export const adminRegister = async (req, res) => {
   try {
-    const { email, password, name, role, university, companyName, companyRegistration } = req.body;
+    const { username, email, password, firstName, lastName } = req.body;
 
-    // Validation
-    if (!email || !password || !name || !role) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields',
-      });
+    // Validate input
+    if (!username || !email || !password) {
+      return res.status(400).json({ message: 'Please provide username, email, and password' });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists with this email',
-      });
+    // Validate username length
+    if (username.trim().length < 3) {
+      return res.status(400).json({ message: 'Username must be at least 3 characters long' });
     }
 
-    // Hash password
-    const hashedPassword = await hashPassword(password);
+    // Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
 
-    // Create user
-    const user = await User.create({
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: 'Please provide a valid email address' });
+    }
+
+    // Check if admin exists
+    const existingAdmin = await Admin.findOne({ $or: [{ email }, { username }] });
+    if (existingAdmin) {
+      if (existingAdmin.email === email) {
+        return res.status(409).json({ message: 'Admin email already registered' });
+      }
+      if (existingAdmin.username === username) {
+        return res.status(409).json({ message: 'Admin username already taken' });
+      }
+    }
+
+    // Create new admin
+    const admin = new Admin({
+      username,
       email,
-      password: hashedPassword,
-      name,
-      role,
-      university: role === 'student' ? university : null,
-      companyName: role === 'vendor' ? companyName : null,
-      companyRegistration: role === 'vendor' ? companyRegistration : null,
-      isVerified: role === 'admin' ? true : false,
+      password,
+      firstName,
+      lastName,
+      role: 'admin',
     });
 
-    // Generate token
-    const token = generateToken(user._id);
+    await admin.save();
 
-    // Remove password from response
-    user.password = undefined;
+    const token = generateToken(admin._id);
 
     res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
+      message: 'Admin registered successfully',
       token,
       user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        isVerified: user.isVerified,
+        id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        role: 'admin',
+        adminId: admin.adminId,
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error during signup',
-    });
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors)
+        .map(err => err.message)
+        .join(', ');
+      return res.status(400).json({ message: 'Validation failed', error: messages });
+    }
+    res.status(500).json({ message: 'Admin registration failed', error: error.message });
   }
 };
 
-export const login = async (req, res) => {
+// Admin Login
+export const adminLogin = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validation
+    // Validate input
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and password',
-      });
+      return res.status(400).json({ message: 'Please provide email and password' });
     }
 
-    // Find user with password field
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials',
-      });
+    // Find admin by email
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    // Check admin status
+    if (admin.status === 'suspended') {
+      return res.status(403).json({ message: 'Your admin account has been suspended' });
+    }
+
+    if (admin.status === 'inactive') {
+      return res.status(403).json({ message: 'Your admin account is inactive' });
     }
 
     // Compare passwords
-    const isPasswordValid = await comparePassword(password, user.password);
+    const isPasswordValid = await comparePassword(password, admin.password);
     if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials',
-      });
+      return res.status(401).json({ message: 'Invalid admin credentials' });
     }
 
-    // Generate token
-    const token = generateToken(user._id);
+    const token = generateToken(admin._id);
 
-    // Update last login
-    user.lastLogin = new Date();
-    await user.save();
+    // Update admin online status and last login
+    await Admin.findByIdAndUpdate(admin._id, {
+      isOnline: true,
+      lastLogin: new Date(),
+    });
 
-    // Remove password from response
-    user.password = undefined;
-
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
+    res.json({
+      message: 'Admin login successful',
       token,
       user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        isVerified: user.isVerified,
+        id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        role: 'admin',
+        adminId: admin.adminId,
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error during login',
-    });
+    res.status(500).json({ message: 'Admin login failed', error: error.message });
   }
 };
 
-export const getCurrentUser = async (req, res) => {
+// Admin Logout
+export const adminLogout = async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
+    const adminId = req.user?.id;
+    if (adminId) {
+      await Admin.findByIdAndUpdate(adminId, {
+        isOnline: false,
       });
     }
-
-    res.status(200).json({
-      success: true,
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        university: user.university,
-        companyName: user.companyName,
-        isVerified: user.isVerified,
-      },
-    });
+    res.json({ message: 'Admin logout successful' });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error fetching user',
-    });
+    res.status(500).json({ message: 'Logout failed', error: error.message });
   }
 };
 
-export const updateProfile = async (req, res) => {
+export const logout = async (req, res) => {
   try {
-    const { name, phoneNumber, address, city, state, zipCode, profilePicture } = req.body;
+    const userId = req.user?.id;
+    
+    if (userId) {
+      // Mark user as offline
+      await User.findByIdAndUpdate(userId, { isOnline: false });
+    }
 
-    const user = await User.findByIdAndUpdate(
-      req.user.userId,
-      {
-        name,
-        phoneNumber,
-        address,
-        city,
-        state,
-        zipCode,
-        profilePicture,
-        updatedAt: new Date(),
-      },
-      { new: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        isVerified: user.isVerified,
-      },
-    });
+    res.json({ message: 'Logout successful' });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error updating profile',
-    });
-  }
-};
-
-export const deleteAccount = async (req, res) => {
-  try {
-    await User.findByIdAndDelete(req.user.userId);
-
-    res.status(200).json({
-      success: true,
-      message: 'Account deleted successfully',
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error deleting account',
-    });
+    res.status(500).json({ message: 'Logout failed', error: error.message });
   }
 };

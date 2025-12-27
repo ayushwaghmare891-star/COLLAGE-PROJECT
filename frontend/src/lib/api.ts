@@ -19,7 +19,7 @@ export const getHeaders = (token?: string) => {
 export const ENDPOINTS = {
   // Auth endpoints
   LOGIN: '/auth/login',
-  SIGNUP: '/auth/signup',
+  SIGNUP: '/auth/register',
   GET_CURRENT_USER: '/auth/me',
   UPDATE_PROFILE: '/auth/profile',
   DELETE_ACCOUNT: '/auth/account',

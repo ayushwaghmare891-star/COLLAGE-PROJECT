@@ -20,11 +20,37 @@ export function VerificationView() {
   const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    // Check current verification status when component loads
+    checkVerificationStatus();
   }, []);
+
+  // Check verification status from backend
+  const checkVerificationStatus = async () => {
+    try {
+      setIsCheckingStatus(true);
+      const response = await verificationAPI.getVerificationStatus();
+      if (response.success) {
+        const status = response.verificationStatus;
+        if (status === 'verified') {
+          setVerificationStatus('verified');
+        } else if (status === 'pending') {
+          setVerificationStatus('pending');
+        } else {
+          setVerificationStatus('not-verified');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check verification status:', error);
+      // Continue anyway, use local state
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
 
   useEffect(() => {
     if (verificationStatus === 'verified') {
@@ -54,13 +80,22 @@ export function VerificationView() {
 
     setLoading(true);
     try {
-      await verificationAPI.sendVerificationCode(email);
+      const response = await verificationAPI.sendVerificationCode(email);
       setCodeSent(true);
       setResendCountdown(60);
-      toast({
-        title: 'Code sent',
-        description: `Verification code sent to ${email}`,
-      });
+      
+      // For development: show test code if available
+      if (import.meta.env.DEV && response.code) {
+        toast({
+          title: 'Code sent (Development)',
+          description: `Test code: ${response.code}`,
+        });
+      } else {
+        toast({
+          title: 'Code sent',
+          description: `Verification code sent to ${email}`,
+        });
+      }
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -131,19 +166,49 @@ export function VerificationView() {
       return;
     }
 
+    // Validate file size (5MB limit)
+    if (uploadedFile.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Maximum file size is 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (!allowedTypes.includes(uploadedFile.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Only images (JPG, PNG, GIF) and PDFs are allowed',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      await verificationAPI.uploadStudentId(uploadedFile);
-      setVerificationStatus('pending');
-      setCurrentStep(2);
       toast({
-        title: 'Upload successful',
-        description: 'Your student ID is being reviewed',
+        title: 'Uploading...',
+        description: `Uploading ${uploadedFile.name}...`,
+      });
+
+      await verificationAPI.uploadStudentId(uploadedFile);
+      setVerificationStatus('verified');
+      setCurrentStep(3);
+      setUploadedFile(null);
+      setPreviewUrl('');
+      toast({
+        title: '✅ Upload successful!',
+        description: 'Your student ID has been uploaded and verified',
       });
     } catch (error: any) {
+      console.error('Upload error:', error);
+      const errorMessage = error?.message || 'Failed to upload document. Please try again.';
       toast({
-        title: 'Upload failed',
-        description: error.response?.data?.message || 'Failed to upload document',
+        title: '❌ Upload failed',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -353,7 +418,7 @@ export function VerificationView() {
             {/* Document Method */}
             {verificationMethod === 'document' && (
               <div className="space-y-6 border-t pt-6">
-                <div className="border-2 border-dashed border-border rounded-lg p-12 text-center bg-background">
+                <div className="relative border-2 border-dashed border-border rounded-lg p-12 text-center bg-background">
                   {previewUrl ? (
                     <div className="space-y-4">
                       <img

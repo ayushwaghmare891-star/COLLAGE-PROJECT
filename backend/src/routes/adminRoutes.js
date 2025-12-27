@@ -1,22 +1,26 @@
 import express from 'express';
+import { authMiddleware } from '../middleware/auth.js';
 import {
-  getPendingVendors,
-  verifyVendor,
-  rejectVendor,
-  getAnalytics,
-  getVendorAnalytics,
+  getAllUsers,
+  getUserById,
+  updateUserRole,
+  updateUserStatus,
+  deleteUser,
+  getStudents,
+  getVendors,
+  getActiveUsers,
 } from '../controllers/adminController.js';
-import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Admin routes
-router.get('/vendors/pending', authenticate, getPendingVendors);
-router.post('/vendors/:id/verify', authenticate, verifyVendor);
-router.delete('/vendors/:id/reject', authenticate, rejectVendor);
-router.get('/analytics', authenticate, getAnalytics);
+router.get('/users', authMiddleware, getAllUsers);
+router.get('/users/:id', authMiddleware, getUserById);
+router.put('/users/:id/role', authMiddleware, updateUserRole);
+router.put('/users/:id/status', authMiddleware, updateUserStatus);
+router.delete('/users/:id', authMiddleware, deleteUser);
 
-// Vendor analytics
-router.get('/vendor-analytics', authenticate, getVendorAnalytics);
+router.get('/students', authMiddleware, getStudents);
+router.get('/vendors', authMiddleware, getVendors);
+router.get('/active-users', authMiddleware, getActiveUsers);
 
 export default router;

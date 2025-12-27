@@ -1,23 +1,21 @@
 import express from 'express';
+import { authMiddleware } from '../middleware/auth.js';
 import {
   createDiscount,
-  getAllDiscounts,
+  getDiscounts,
   getDiscountById,
-  getVendorDiscounts,
   updateDiscount,
   deleteDiscount,
-  redeemDiscount,
+  verifyDiscount,
 } from '../controllers/discountController.js';
-import { authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/', getAllDiscounts);
+router.post('/', authMiddleware, createDiscount);
+router.get('/', getDiscounts);
 router.get('/:id', getDiscountById);
-router.post('/', authenticate, createDiscount);
-router.get('/vendor/my-discounts', authenticate, getVendorDiscounts);
-router.put('/:id', authenticate, updateDiscount);
-router.delete('/:id', authenticate, deleteDiscount);
-router.post('/:id/redeem', authenticate, redeemDiscount);
+router.put('/:id', authMiddleware, updateDiscount);
+router.delete('/:id', authMiddleware, deleteDiscount);
+router.post('/verify', verifyDiscount);
 
 export default router;

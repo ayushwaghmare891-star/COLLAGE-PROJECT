@@ -1,273 +1,340 @@
-import { User } from '../models/User.js';
-import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { User, Admin } from '../models/User.js';
+import { Student } from '../models/Student.js';
+import { Vendor } from '../models/Vendor.js';
 
-// Configure email service (update with your email provider)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+// Create transporter - use test account if credentials not available
+let transporter;
 
-// Generate random 6-digit code
-const generateVerificationCode = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+const initializeTransporter = async () => {
+  if (process.env.MAILTRAP_USER && process.env.MAILTRAP_PASS) {
+    transporter = nodemailer.createTransport({
+      host: process.env.MAILTRAP_HOST || 'smtp.mailtrap.io',
+      port: process.env.MAILTRAP_PORT || 2525,
+      auth: {
+        user: process.env.MAILTRAP_USER,
+        pass: process.env.MAILTRAP_PASS,
+      },
+    });
+  } else {
+    // Use Ethereal test account for development
+    const testAccount = await nodemailer.createTestAccount();
+    transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+  }
 };
 
-// Send verification email with code
-export const sendVerificationCode = async (req, res) => {
+await initializeTransporter();
+
+export const sendVerificationEmail = async (req, res) => {
   try {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required',
-      });
+      return res.status(400).json({ message: 'Email is required' });
     }
 
-    // Check if user exists
+    // Search across all user types
     let user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found. Please sign up first.',
-      });
+      user = await Admin.findOne({ email });
+    }
+    if (!user) {
+      user = await Student.findOne({ email });
+    }
+    if (!user) {
+      user = await Vendor.findOne({ email });
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
     // Generate verification code
-    const code = generateVerificationCode();
-    const expiresIn = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Update user with verification code
-    user = await User.findByIdAndUpdate(
-      user._id,
-      {
-        verificationCode: code,
-        verificationCodeExpires: expiresIn,
-      },
-      { new: true }
-    );
+    // TODO: Save verification code to database with expiry (implement VerificationCode model)
+    // await VerificationCode.create({ userId: user._id, code: verificationCode, expiresAt: new Date(Date.now() + 10 * 60 * 1000) })
 
     // Send email
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: process.env.MAILTRAP_FROM || 'noreply@collage.com',
       to: email,
-      subject: 'Student Verification Code - Student Deals',
+      subject: 'Email Verification - Collage',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #2563eb;">Student Deals - Verification Code</h2>
-          <p>Hi ${user.name},</p>
-          <p>Your verification code is:</p>
-          <h1 style="color: #2563eb; font-size: 48px; letter-spacing: 8px; margin: 20px 0;">
-            ${code}
-          </h1>
-          <p>This code will expire in 10 minutes.</p>
-          <p style="color: #666; font-size: 12px; margin-top: 20px;">
-            If you didn't request this code, please ignore this email.
-          </p>
+        <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 8px;">
+            <h2 style="color: #333;">Verify Your Email</h2>
+            <p style="color: #666; font-size: 16px;">Your verification code is:</p>
+            <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2563eb;">${verificationCode}</span>
+            </div>
+            <p style="color: #999; font-size: 14px;">This code expires in 10 minutes.</p>
+            <p style="color: #666; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              If you didn't request this verification code, please ignore this email.
+            </p>
+          </div>
         </div>
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
 
-    res.status(200).json({
-      success: true,
-      message: 'Verification code sent to your email',
-      email: user.email,
+    // Log preview URL for test accounts
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
+    }
+
+    res.json({ 
+      message: 'Verification email sent successfully',
+      code: verificationCode, // For testing only - remove in production
+      previewUrl: process.env.NODE_ENV === 'development' ? nodemailer.getTestMessageUrl(info) : undefined
     });
   } catch (error) {
-    console.error('Error sending verification code:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error sending verification code',
+    console.error('Error sending verification email:', error);
+    res.status(500).json({ 
+      message: 'Error sending verification email', 
+      error: error.message 
     });
   }
 };
 
-// Verify email with code
-export const verifyEmailCode = async (req, res) => {
+export const verifyEmail = async (req, res) => {
   try {
     const { email, code } = req.body;
 
     if (!email || !code) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and code are required',
-      });
+      return res.status(400).json({ message: 'Email and code are required' });
     }
 
-    const user = await User.findOne({ email });
+    // TODO: Implement proper verification code validation with database
+    // const verification = await VerificationCode.findOne({ code, expiresAt: { $gt: new Date() } })
+    // if (!verification) {
+    //   return res.status(400).json({ message: 'Invalid or expired verification code' })
+    // }
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Check if code is valid and not expired
-    if (
-      !user.verificationCode ||
-      user.verificationCode !== code ||
-      new Date() > user.verificationCodeExpires
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid or expired verification code',
-      });
-    }
-
-    // Update user verification status
-    const updatedUser = await User.findByIdAndUpdate(
-      user._id,
-      {
-        isVerified: true,
-        verificationStatus: 'verified',
-        verificationMethod: 'email',
-        verificationCode: null,
-        verificationCodeExpires: null,
-        updatedAt: new Date(),
-      },
+    // Try to verify user across all types
+    let user = await User.findOneAndUpdate(
+      { email },
+      { isEmailVerified: true },
       { new: true }
     ).select('-password');
 
-    res.status(200).json({
+    if (!user) {
+      user = await Admin.findOneAndUpdate(
+        { email },
+        { isEmailVerified: true },
+        { new: true }
+      ).select('-password');
+    }
+
+    if (!user) {
+      user = await Student.findOneAndUpdate(
+        { email },
+        { isEmailVerified: true },
+        { new: true }
+      ).select('-password');
+    }
+
+    if (!user) {
+      user = await Vendor.findOneAndUpdate(
+        { email },
+        { isEmailVerified: true },
+        { new: true }
+      ).select('-password');
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ 
+      message: 'Email verified successfully', 
       success: true,
-      message: 'Email verified successfully',
-      user: updatedUser,
+      user 
     });
   } catch (error) {
-    console.error('Error verifying email code:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error verifying email code',
+    console.error('Error verifying email:', error);
+    res.status(500).json({ 
+      message: 'Error verifying email', 
+      error: error.message 
     });
   }
 };
 
-// Upload student ID document
+export const resendVerificationEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Search across all user types
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = await Admin.findOne({ email });
+    }
+    if (!user) {
+      user = await Student.findOne({ email });
+    }
+    if (!user) {
+      user = await Vendor.findOne({ email });
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(400).json({ message: 'Email already verified' });
+    }
+
+    // Generate new verification code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    const mailOptions = {
+      from: process.env.MAILTRAP_FROM || 'noreply@collage.com',
+      to: email,
+      subject: 'Email Verification - Collage (Resend)',
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 30px; border-radius: 8px;">
+            <h2 style="color: #333;">Verify Your Email</h2>
+            <p style="color: #666; font-size: 16px;">Your verification code is:</p>
+            <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; text-align: center; margin: 20px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2563eb;">${verificationCode}</span>
+            </div>
+            <p style="color: #999; font-size: 14px;">This code expires in 10 minutes.</p>
+            <p style="color: #666; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+              If you didn't request this verification code, please ignore this email.
+            </p>
+          </div>
+        </div>
+      `,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
+    }
+
+    res.json({ 
+      message: 'Verification email resent successfully',
+      code: verificationCode, // For testing only - remove in production
+      previewUrl: process.env.NODE_ENV === 'development' ? nodemailer.getTestMessageUrl(info) : undefined
+    });
+  } catch (error) {
+    console.error('Error resending verification email:', error);
+    res.status(500).json({ 
+      message: 'Error resending verification email', 
+      error: error.message 
+    });
+  }
+};
+
 export const uploadStudentId = async (req, res) => {
   try {
-    const userId = req.user?._id || req.body.userId;
-    
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-      });
-    }
-
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'No file uploaded',
-      });
+      return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // In production, upload to cloud storage (AWS S3, Cloudinary, etc.)
-    // For now, we'll store the file path
-    const studentIdUrl = `/uploads/${req.file.filename}`;
+    const userId = req.userId; // From auth middleware
+    const fileName = req.file.filename || `student-id-${userId}-${Date.now()}`;
+    const filePath = req.file.path || `/uploads/${fileName}`;
+    const fileSize = req.file.size;
+    const mimeType = req.file.mimetype;
 
-    const user = await User.findByIdAndUpdate(
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (!allowedTypes.includes(mimeType)) {
+      return res.status(400).json({ message: 'Invalid file type. Only images and PDFs are allowed' });
+    }
+
+    // Search across all user types to find the user
+    let user = await User.findByIdAndUpdate(
       userId,
       {
-        studentIdUrl,
-        verificationStatus: 'pending',
-        verificationMethod: 'student-id',
-        updatedAt: new Date(),
+        studentIdDocument: filePath,
+        studentIdFileName: fileName,
+        studentIdUploadedAt: new Date(),
+        isEmailVerified: true,
       },
       { new: true }
     ).select('-password');
 
-    res.status(200).json({
+    if (!user) {
+      user = await Student.findByIdAndUpdate(
+        userId,
+        {
+          studentIdDocument: filePath,
+          studentIdFileName: fileName,
+          studentIdUploadedAt: new Date(),
+          isEmailVerified: true,
+        },
+        { new: true }
+      ).select('-password');
+    }
+
+    if (!user) {
+      user = await Vendor.findByIdAndUpdate(
+        userId,
+        {
+          studentIdDocument: filePath,
+          studentIdFileName: fileName,
+          studentIdUploadedAt: new Date(),
+        },
+        { new: true }
+      ).select('-password');
+    }
+
+    if (!user) {
+      user = await Admin.findByIdAndUpdate(
+        userId,
+        {
+          studentIdDocument: filePath,
+          studentIdFileName: fileName,
+          studentIdUploadedAt: new Date(),
+        },
+        { new: true }
+      ).select('-password');
+    }
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(201).json({
+      message: 'Student ID uploaded successfully',
       success: true,
-      message: 'Student ID uploaded successfully. Awaiting verification.',
       user,
+      file: {
+        fileName,
+        filePath,
+        fileSize,
+        uploadedAt: new Date(),
+      },
     });
   } catch (error) {
     console.error('Error uploading student ID:', error);
     res.status(500).json({
-      success: false,
-      message: error.message || 'Error uploading student ID',
+      message: 'Error uploading student ID',
+      error: error.message,
     });
   }
 };
-
-// Initiate SheerID verification
-export const initiateSheerIdVerification = async (req, res) => {
-  try {
-    const userId = req.user?._id || req.body.userId;
-    const { affiliationType, affiliationValue } = req.body;
-
-    if (!userId || !affiliationType || !affiliationValue) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID, affiliation type, and value are required',
-      });
-    }
-
-    // SheerID API integration
-    const sheerIdUrl = 'https://services.sheerid.com/verification/verify';
-    const payload = {
-      consumerKey: process.env.SHEERID_KEY,
-      consumerSecret: process.env.SHEERID_SECRET,
-      affiliationType,
-      affiliationValue,
-      email: req.body.email,
-    };
-
-    // Make request to SheerID API
-    const response = await fetch(sheerIdUrl, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok || !data.verified) {
-      return res.status(400).json({
-        success: false,
-        message: 'SheerID verification failed',
-        details: data.message,
-      });
-    }
-
-    // Update user as verified
-    const user = await User.findByIdAndUpdate(
-      userId,
-      {
-        isVerified: true,
-        verificationStatus: 'verified',
-        verificationMethod: 'sheerid',
-        sheerIdVerificationId: data.verificationId,
-        updatedAt: new Date(),
-      },
-      { new: true }
-    ).select('-password');
-
-    res.status(200).json({
-      success: true,
-      message: 'Verification successful',
-      user,
-    });
-  } catch (error) {
-    console.error('Error with SheerID verification:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error with SheerID verification',
-    });
-  }
-};
-
-// Get verification status
+// Get verification status for a student
 export const getVerificationStatus = async (req, res) => {
   try {
-    const userId = req.user?._id || req.params.userId;
+    const userId = req.user?.id || req.params.userId;
 
     if (!userId) {
       return res.status(400).json({
@@ -276,134 +343,44 @@ export const getVerificationStatus = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId).select(
-      'isVerified verificationStatus verificationMethod studentIdUrl'
-    );
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
+    // Search in Student collection first
+    let student = await Student.findById(userId).select('studentId isEmailVerified documentVerified studentIdUploadedAt');
+    
+    if (student) {
+      return res.status(200).json({
+        success: true,
+        verificationStatus: student.documentVerified ? 'verified' : student.studentIdUploadedAt ? 'pending' : 'not-verified',
+        isVerified: student.documentVerified,
+        isEmailVerified: student.isEmailVerified,
+        documentVerified: student.documentVerified,
+        uploadedAt: student.studentIdUploadedAt,
       });
     }
 
-    res.status(200).json({
-      success: true,
-      verificationStatus: user.verificationStatus,
-      isVerified: user.isVerified,
-      verificationMethod: user.verificationMethod,
-      studentIdUrl: user.studentIdUrl,
+    // If not found in Student, try User collection
+    const user = await User.findById(userId).select('isEmailVerified studentIdDocument studentIdUploadedAt');
+    
+    if (user) {
+      return res.status(200).json({
+        success: true,
+        verificationStatus: user.studentIdDocument ? 'pending' : 'not-verified',
+        isVerified: false,
+        isEmailVerified: user.isEmailVerified,
+        documentVerified: !!user.studentIdDocument,
+        uploadedAt: user.studentIdUploadedAt,
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: 'User not found',
     });
   } catch (error) {
     console.error('Error getting verification status:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error getting verification status',
-    });
-  }
-};
-
-// Admin: Approve student verification
-export const approveStudentVerification = async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-      });
-    }
-
-    const user = await User.findByIdAndUpdate(
-      userId,
-      {
-        isVerified: true,
-        verificationStatus: 'verified',
-        updatedAt: new Date(),
-      },
-      { new: true }
-    ).select('-password');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Student verification approved',
-      user,
-    });
-  } catch (error) {
-    console.error('Error approving verification:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error approving verification',
-    });
-  }
-};
-
-// Admin: Reject student verification
-export const rejectStudentVerification = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { reason } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID is required',
-      });
-    }
-
-    const user = await User.findByIdAndUpdate(
-      userId,
-      {
-        verificationStatus: 'rejected',
-        updatedAt: new Date(),
-      },
-      { new: true }
-    ).select('-password');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Optionally send email to user about rejection
-    if (reason) {
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: user.email,
-        subject: 'Verification Status Update - Student Deals',
-        html: `
-          <div style="font-family: Arial, sans-serif;">
-            <h2>Verification Not Approved</h2>
-            <p>Hi ${user.name},</p>
-            <p>Your verification was not approved. Reason:</p>
-            <p><strong>${reason}</strong></p>
-            <p>Please try again with a clearer document.</p>
-          </div>
-        `,
-      };
-      await transporter.sendMail(mailOptions);
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'Student verification rejected',
-      user,
-    });
-  } catch (error) {
-    console.error('Error rejecting verification:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Error rejecting verification',
+      message: 'Error getting verification status',
+      error: error.message,
     });
   }
 };

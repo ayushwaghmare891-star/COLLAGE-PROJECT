@@ -1,22 +1,56 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { useNavigate } from 'react-router-dom';
-import { UsersIcon, BuildingIcon, TagIcon, ShieldCheckIcon, TrendingUpIcon, ActivityIcon, AlertCircleIcon, CheckCircleIcon } from 'lucide-react';
+import { UsersIcon, BuildingIcon, TagIcon, ShieldCheckIcon, TrendingUpIcon, ActivityIcon, AlertCircleIcon, CheckCircleIcon, UserCheckIcon } from 'lucide-react';
+import { useToast } from '../../hooks/use-toast';
+
+interface ActiveUsersStats {
+  totalUsers: number;
+  onlineUsers: number;
+  offlineUsers: number;
+  students: { total: number; online: number; offline: number };
+  vendors: { total: number; online: number; offline: number };
+}
 
 export function AdminDashboard() {
   const navigate = useNavigate();
+  const [activeUsersStats, setActiveUsersStats] = useState<ActiveUsersStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    fetchActiveUsers();
   }, []);
 
+  const fetchActiveUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:5000/api/admin/active-users', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch active users');
+      
+      const data = await response.json();
+      setActiveUsersStats(data.stats);
+    } catch (error: any) {
+      console.log('Note: Could not fetch active users stats');
+      // Don't show error toast, just use default stats
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const stats = [
-    { label: 'Total Students', value: '1,247', icon: UsersIcon, color: 'from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900', iconBg: 'bg-blue-500', iconColor: 'text-white', change: '+12%' },
-    { label: 'Total Vendors', value: '89', icon: BuildingIcon, color: 'from-green-50 to-green-100 dark:from-green-950 dark:to-green-900', iconBg: 'bg-green-500', iconColor: 'text-white', change: '+8%' },
-    { label: 'Active Offers', value: '342', icon: TagIcon, color: 'from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900', iconBg: 'bg-purple-500', iconColor: 'text-white', change: '+15%' },
-    { label: 'Pending Verifications', value: '23', icon: ShieldCheckIcon, color: 'from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900', iconBg: 'bg-orange-500', iconColor: 'text-white', change: '-5%' },
-    { label: 'Redemptions This Month', value: '5,892', icon: TrendingUpIcon, color: 'from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900', iconBg: 'bg-teal-500', iconColor: 'text-white', change: '+25%' },
+    { label: 'Total Users', value: activeUsersStats?.totalUsers || '0', icon: UsersIcon, bgGradient: 'from-indigo-600 to-indigo-700', iconColor: 'text-indigo-100', change: `${activeUsersStats?.onlineUsers || 0} online` },
+    { label: 'Online Now', value: activeUsersStats?.onlineUsers || '0', icon: UserCheckIcon, bgGradient: 'from-emerald-600 to-teal-600', iconColor: 'text-emerald-100', change: '🟢 Live' },
+    { label: 'Students Online', value: activeUsersStats?.students.online || '0', icon: UsersIcon, bgGradient: 'from-blue-600 to-cyan-600', iconColor: 'text-blue-100', change: `${activeUsersStats?.students.total || 0} total` },
+    { label: 'Vendors Online', value: activeUsersStats?.vendors.online || '0', icon: BuildingIcon, bgGradient: 'from-purple-600 to-pink-600', iconColor: 'text-purple-100', change: `${activeUsersStats?.vendors.total || 0} total` },
+    { label: 'Active Offers', value: '342', icon: TagIcon, bgGradient: 'from-orange-600 to-red-600', iconColor: 'text-orange-100', change: '+15% today' },
   ];
 
   const recentActivity = [
@@ -34,71 +68,184 @@ export function AdminDashboard() {
   ];
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+    <div className="space-y-8 pb-8">
+      <div className="bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 rounded-2xl px-8 py-12 text-white shadow-2xl border border-purple-800/50">
+        <h1 className="text-4xl md:text-5xl font-bold mb-2">
           Welcome back, Admin 👋
         </h1>
-        <p className="text-body text-muted-foreground">
-          Here's what's happening with your platform today
+        <p className="text-purple-200 text-lg">
+          Monitor your platform activity and manage users in real-time
         </p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, index) => (
-          <Card key={index} className={`bg-gradient-to-br ${stat.color} border-0 hover:shadow-xl transition-all hover:-translate-y-1`}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xs font-medium text-gray-700 dark:text-gray-300">{stat.label}</CardTitle>
-                <div className={`w-10 h-10 ${stat.iconBg} rounded-lg flex items-center justify-center shadow-lg`}>
-                  <stat.icon className={`w-5 h-5 ${stat.iconColor}`} strokeWidth={2} />
+          <Card key={index} className={`bg-gradient-to-br ${stat.bgGradient} border-0 shadow-lg hover:shadow-2xl transition-all hover:-translate-y-1 group`}>
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                  <stat.icon className={`w-6 h-6 ${stat.iconColor}`} strokeWidth={2.5} />
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stat.value}</p>
-              <p className={`text-xs mt-1 ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
-                {stat.change} from last month
-              </p>
+              <p className="text-white/80 text-sm font-medium mb-1">{stat.label}</p>
+              <p className="text-4xl font-bold text-white mb-2">{stat.value}</p>
+              <p className="text-white/70 text-xs">{stat.change}</p>
             </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* Active Users Breakdown */}
+      {activeUsersStats && (
+        <Card className="border-0 shadow-lg bg-white dark:bg-slate-800">
+          <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-t-2xl pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <ActivityIcon className="w-6 h-6 text-emerald-100" strokeWidth={2.5} />
+              </div>
+              <div>
+                <CardTitle className="text-white">Live Activity</CardTitle>
+                <CardDescription className="text-emerald-100">
+                  Real-time user engagement metrics
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {/* Students */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
+                    <UsersIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Students</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
+                      {activeUsersStats.students.online}
+                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      / {activeUsersStats.students.total}
+                    </span>
+                  </div>
+                  <div className="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-500"
+                      style={{ width: `${activeUsersStats.students.total > 0 ? (activeUsersStats.students.online / activeUsersStats.students.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    {activeUsersStats.students.total > 0 ? Math.round((activeUsersStats.students.online / activeUsersStats.students.total) * 100) : 0}% logged in
+                  </p>
+                </div>
+              </div>
+
+              {/* Vendors */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center">
+                    <BuildingIcon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Vendors</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+                      {activeUsersStats.vendors.online}
+                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      / {activeUsersStats.vendors.total}
+                    </span>
+                  </div>
+                  <div className="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full transition-all duration-500"
+                      style={{ width: `${activeUsersStats.vendors.total > 0 ? (activeUsersStats.vendors.online / activeUsersStats.vendors.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    {activeUsersStats.vendors.total > 0 ? Math.round((activeUsersStats.vendors.online / activeUsersStats.vendors.total) * 100) : 0}% logged in
+                  </p>
+                </div>
+              </div>
+
+              {/* Total */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900 rounded-lg flex items-center justify-center">
+                    <UserCheckIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <p className="font-semibold text-gray-900 dark:text-white">All Users</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-5xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                      {activeUsersStats.onlineUsers}
+                    </span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      / {activeUsersStats.totalUsers}
+                    </span>
+                  </div>
+                  <div className="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
+                      style={{ width: `${activeUsersStats.totalUsers > 0 ? (activeUsersStats.onlineUsers / activeUsersStats.totalUsers) * 100 : 0}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">
+                    {activeUsersStats.totalUsers > 0 ? Math.round((activeUsersStats.onlineUsers / activeUsersStats.totalUsers) * 100) : 0}% active now
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Pending Actions */}
       {pendingActions.some(action => action.urgent) && (
-        <Card className="bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800">
-          <CardHeader>
+        <Card className="border-0 shadow-lg bg-white dark:bg-slate-800">
+          <CardHeader className="bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-t-2xl pb-4">
             <div className="flex items-center gap-3">
-              <AlertCircleIcon className="w-6 h-6 text-orange-600 dark:text-orange-400" strokeWidth={2} />
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <AlertCircleIcon className="w-6 h-6 text-amber-100" strokeWidth={2.5} />
+              </div>
               <div>
-                <CardTitle className="text-orange-900 dark:text-orange-100">Action Required</CardTitle>
-                <CardDescription className="text-orange-700 dark:text-orange-300">
+                <CardTitle className="text-white">Action Required</CardTitle>
+                <CardDescription className="text-amber-100">
                   Items that need your immediate attention
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {pendingActions.map((action) => (
                 <div
                   key={action.id}
-                  className={`p-4 rounded-lg border ${
+                  className={`p-5 rounded-xl border-2 transition-all hover:shadow-lg ${
                     action.urgent 
-                      ? 'bg-white dark:bg-gray-800 border-orange-200 dark:border-orange-800' 
-                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                      ? 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950 dark:to-amber-900 border-orange-300 dark:border-orange-700' 
+                      : 'bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 border-gray-200 dark:border-gray-600'
                   }`}
                 >
-                  <h4 className="font-semibold text-foreground mb-1">{action.title}</h4>
-                  <p className="text-sm text-muted-foreground mb-3">{action.description}</p>
+                  {action.urgent && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                      <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">URGENT</span>
+                    </div>
+                  )}
+                  <h4 className="font-bold text-gray-900 dark:text-white mb-1">{action.title}</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{action.description}</p>
                   <Button
                     onClick={() => navigate(action.route)}
                     size="sm"
-                    className={action.urgent ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-primary text-primary-foreground hover:bg-primary/90'}
+                    className={action.urgent ? 'w-full bg-gradient-to-r from-orange-500 to-red-500 text-white hover:shadow-lg' : 'w-full bg-blue-600 text-white hover:bg-blue-700'}
                   >
-                    {action.action}
+                    {action.action} →
                   </Button>
                 </div>
               ))}

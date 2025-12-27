@@ -2,20 +2,58 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { useNavigate } from 'react-router-dom';
-import { TagIcon, PlusIcon, SearchIcon, FilterIcon, EyeIcon, UsersIcon, EditIcon, TrashIcon } from 'lucide-react';
+import { TagIcon, PlusIcon, SearchIcon, EyeIcon, UsersIcon, EditIcon, TrashIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
+import { useAuthStore } from '../../stores/authStore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { useToast } from '../../hooks/use-toast';
+import { fetchVendorOffers, deleteOffer } from '../../lib/offerAPI';
 
 export function VendorOffers() {
   const navigate = useNavigate();
-  const { vendorDiscounts, deleteVendorDiscount } = useAppStore();
+  const { vendorDiscounts, deleteVendorDiscount, setVendorDiscounts } = useAppStore();
+  const { token } = useAuthStore();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Fetch vendor offers on component mount
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    const loadOffers = async () => {
+      if (!token) return;
+      try {
+        const data = await fetchVendorOffers(token);
+        // Convert backend data to frontend format
+        const offers = data.offers?.map((offer: any) => ({
+          id: offer._id,
+          vendorId: offer.vendorId?._id || 'vendor1',
+          brand: offer.title,
+          discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `$${offer.offerValue} off`,
+          description: offer.description,
+          category: offer.category,
+          expiryDays: Math.ceil((new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
+          isExpired: new Date(offer.endDate) < new Date(),
+          isUsed: false,
+          termsAndConditions: offer.terms || '',
+          createdAt: offer.createdAt,
+          usageCount: 0,
+          totalViews: 0,
+          isActive: offer.isActive,
+        })) || [];
+        setVendorDiscounts(offers);
+      } catch (error) {
+        console.error('Failed to load offers:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load your offers",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadOffers();
+  }, [token, setVendorDiscounts, toast]);
 
   const filteredOffers = vendorDiscounts.filter(offer => {
     const matchesSearch = offer.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -28,9 +66,23 @@ export function VendorOffers() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this offer?')) {
-      deleteVendorDiscount(id);
+      try {
+        await deleteOffer(token!, id);
+        deleteVendorDiscount(id);
+        toast({
+          title: "Offer deleted",
+          description: "Your offer has been successfully deleted",
+        });
+      } catch (error) {
+        console.error('Failed to delete offer:', error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to delete offer",
+          variant: "destructive",
+        });
+      }
     }
   };
 
