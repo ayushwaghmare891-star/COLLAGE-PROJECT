@@ -24,12 +24,12 @@ export function DiscountsView() {
     new Set(allOffers.map(o => o.category).filter(Boolean))
   ).sort();
 
-  const loadOffers = async (showLoading = true) => {
+  const loadOffers = async (showLoading = true, category?: string) => {
     try {
       if (showLoading) setLoading(true);
       else setIsRefreshing(true);
       
-      const data = await fetchAllActiveOffers();
+      const data = await fetchAllActiveOffers(category || categoryFilter);
       console.log('Fetched offers data:', data);
       const offers = data.offers?.map((offer: any) => ({
         id: offer._id,
@@ -162,7 +162,10 @@ export function DiscountsView() {
         <div className="flex items-center gap-2">
           <FilterIcon className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground flex-shrink-0" strokeWidth={2} />
           <div className="flex flex-wrap gap-2 sm:gap-4 flex-1">
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <Select value={categoryFilter} onValueChange={(value) => {
+              setCategoryFilter(value);
+              loadOffers(true, value);
+            }}>
               <SelectTrigger className="w-full sm:w-40 bg-background text-foreground border-input text-sm">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>

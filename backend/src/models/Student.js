@@ -50,6 +50,24 @@ const studentSchema = new mongoose.Schema(
       enum: ['active', 'inactive', 'suspended'],
       default: 'active',
     },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      default: '',
+    },
     studentIdDocument: {
       type: String,
       default: '',
@@ -81,6 +99,19 @@ const studentSchema = new mongoose.Schema(
     enrollmentYear: {
       type: Number,
       default: null,
+    },
+    role: {
+      type: String,
+      enum: ['student', 'admin'],
+      default: 'student',
+    },
+    permissions: {
+      type: [String],
+      default: function() {
+        return this.role === 'admin' 
+          ? ['manage_users', 'manage_vendors', 'manage_students', 'view_analytics']
+          : [];
+      },
     },
     redeemedOffers: [
       {

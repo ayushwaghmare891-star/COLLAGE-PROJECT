@@ -4,7 +4,7 @@ import { generateToken } from '../utils/jwt.js';
 
 export const studentRegister = async (req, res) => {
   try {
-    const { username, email, password, firstName, lastName, college, enrollmentYear } = req.body;
+    const { username, email, password, firstName, lastName, college, enrollmentYear, role } = req.body;
 
     // Validate input
     if (!username || !email || !password) {
@@ -47,6 +47,7 @@ export const studentRegister = async (req, res) => {
       lastName,
       college,
       enrollmentYear,
+      role: role || 'student', // Default to 'student' if role not provided
     });
 
     await student.save();
@@ -54,7 +55,7 @@ export const studentRegister = async (req, res) => {
     const token = generateToken(student._id);
 
     res.status(201).json({
-      message: 'Student registered successfully',
+      message: 'Student registered successfully. Please upload your ID document for verification.',
       token,
       user: {
         id: student._id,
@@ -65,6 +66,8 @@ export const studentRegister = async (req, res) => {
         lastName: student.lastName,
         type: 'student',
       },
+      requiresDocumentVerification: true,
+      documentUploadUrl: '/api/verification/upload-student-document',
     });
   } catch (error) {
     // Handle MongoDB validation errors
@@ -91,6 +94,20 @@ export const studentLogin = async (req, res) => {
     const student = await Student.findOne({ email });
     if (!student) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // Check if student is approved by admin
+    if (student.approvalStatus === 'pending') {
+      return res.status(403).json({ 
+        message: 'Your account is pending admin approval. Please wait for verification.' 
+      });
+    }
+
+    if (student.approvalStatus === 'rejected') {
+      return res.status(403).json({ 
+        message: 'Your account has been rejected. Reason: ' + (student.rejectionReason || 'Not specified'),
+        rejectionReason: student.rejectionReason
+      });
     }
 
     // Check if student account is active
@@ -122,7 +139,9 @@ export const studentLogin = async (req, res) => {
         email: student.email,
         firstName: student.firstName,
         lastName: student.lastName,
-        type: 'student',
+        role: student.role,
+        isEmailVerified: student.isEmailVerified,
+        permissions: student.permissions || [],
       },
     });
   } catch (error) {

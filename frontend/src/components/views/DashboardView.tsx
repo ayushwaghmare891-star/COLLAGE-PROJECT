@@ -21,7 +21,10 @@ export function DashboardView() {
   const loadOffers = async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
     try {
+      console.log('Loading offers...');
       const data = await fetchAllActiveOffers();
+      console.log('Offers loaded successfully:', data);
+      
       const offers = data.offers?.map((offer: any) => ({
         id: offer._id,
         vendorId: offer.vendorId?._id || offer.vendorId,
@@ -40,8 +43,19 @@ export function DashboardView() {
         code: offer.code,
       })) || [];
       setAllOffers(offers);
+      console.log(`Successfully loaded ${offers.length} offers`);
     } catch (error) {
       console.error('Failed to load offers:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error details:', {
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : 'No stack trace',
+      });
+      
+      // Show user-friendly error message
+      if (errorMessage.includes('Network error')) {
+        console.warn('⚠️ Backend server may not be running. Check if the backend is started on http://localhost:5000');
+      }
     } finally {
       if (showLoading) setIsRefreshing(false);
     }

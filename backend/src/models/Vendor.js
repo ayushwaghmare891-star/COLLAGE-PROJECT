@@ -57,6 +57,24 @@ const vendorSchema = new mongoose.Schema(
       enum: ['active', 'inactive', 'suspended', 'pending-verification'],
       default: 'pending-verification',
     },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      default: '',
+    },
     businessDocument: {
       type: String,
       default: '',

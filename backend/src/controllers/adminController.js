@@ -1,4 +1,7 @@
 import { User } from '../models/User.js';
+import { Offer } from '../models/Offer.js';
+import { Student } from '../models/Student.js';
+import { Vendor } from '../models/Vendor.js';
 
 export const getAllUsers = async (req, res) => {
   try {
@@ -120,13 +123,15 @@ export const getVendors = async (req, res) => {
 
 export const getActiveUsers = async (req, res) => {
   try {
-    // Get counts of online users by role
-    const onlineStudents = await User.countDocuments({ role: 'student', isOnline: true });
-    const onlineVendors = await User.countDocuments({ role: 'vendor', isOnline: true });
-    const totalStudents = await User.countDocuments({ role: 'student' });
-    const totalVendors = await User.countDocuments({ role: 'vendor' });
-    const totalUsers = await User.countDocuments({});
-    const onlineUsers = await User.countDocuments({ isOnline: true });
+    // Get counts of online students and vendors from their respective collections
+    const totalStudents = await Student.countDocuments({ approvalStatus: 'approved' });
+    const onlineStudents = await Student.countDocuments({ approvalStatus: 'approved', isOnline: true });
+    
+    const totalVendors = await Vendor.countDocuments({ approvalStatus: 'approved' });
+    const onlineVendors = await Vendor.countDocuments({ approvalStatus: 'approved', isOnline: true });
+    
+    const totalUsers = totalStudents + totalVendors;
+    const onlineUsers = onlineStudents + onlineVendors;
 
     res.json({
       message: 'Active users fetched successfully',
@@ -148,5 +153,78 @@ export const getActiveUsers = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching active users', error: error.message });
+  }
+};
+
+export const getAllOffers = async (req, res) => {
+  try {
+    const offers = await Offer.find()
+      .populate('vendorId', 'username email')
+      .sort({ createdAt: -1 });
+    
+    res.json({
+      message: 'Offers fetched successfully',
+      offers,
+      count: offers.length
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching offers', error: error.message });
+  }
+};
+
+export const getOffersStats = async (req, res) => {
+  try {
+    const activeOffers = await Offer.countDocuments({ isActive: true });
+    const inactiveOffers = await Offer.countDocuments({ isActive: false });
+    const totalOffers = await Offer.countDocuments({});
+
+    res.json({
+      message: 'Offers stats fetched successfully',
+      activeOffers,
+      inactiveOffers,
+      totalOffers,
+      changePercentage: totalOffers > 0 ? `+${Math.round((activeOffers / totalOffers) * 100)}%` : '0%'
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching offers stats', error: error.message });
+  }
+};
+
+export const toggleOfferStatus = async (req, res) => {
+  try {
+    const { offerId } = req.params;
+    
+    const offer = await Offer.findById(offerId);
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+
+    offer.isActive = !offer.isActive;
+    await offer.save();
+
+    res.json({
+      message: `Offer ${offer.isActive ? 'activated' : 'deactivated'} successfully`,
+      offer
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error updating offer status', error: error.message });
+  }
+};
+
+export const deleteOfferByAdmin = async (req, res) => {
+  try {
+    const { offerId } = req.params;
+    
+    const offer = await Offer.findByIdAndDelete(offerId);
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+
+    res.json({
+      message: 'Offer deleted successfully',
+      offer
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting offer', error: error.message });
   }
 };

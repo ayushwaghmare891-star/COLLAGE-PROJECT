@@ -24,10 +24,9 @@ export const useAuthStore = create<AuthState>()(
       login: async (email: string, password: string, role: UserRole) => {
         try {
           // Route to different endpoints based on user role
-          let endpoint = `${API_BASE_URL}/auth/login`;
-          if (role === 'student') {
-            endpoint = `${API_BASE_URL}/auth/student/login`;
-          } else if (role === 'vendor') {
+          // Note: Both students and admins use the student endpoint (Option B)
+          let endpoint = `${API_BASE_URL}/auth/student/login`;
+          if (role === 'vendor') {
             endpoint = `${API_BASE_URL}/auth/vendor/login`;
           }
 

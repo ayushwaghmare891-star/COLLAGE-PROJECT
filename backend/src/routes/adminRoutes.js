@@ -9,7 +9,12 @@ import {
   getStudents,
   getVendors,
   getActiveUsers,
+  getAllOffers,
+  getOffersStats,
+  toggleOfferStatus,
+  deleteOfferByAdmin,
 } from '../controllers/adminController.js';
+import { getPendingVerifications } from '../controllers/adminDashboardController.js';
 
 const router = express.Router();
 
@@ -22,5 +27,10 @@ router.delete('/users/:id', authMiddleware, deleteUser);
 router.get('/students', authMiddleware, getStudents);
 router.get('/vendors', authMiddleware, getVendors);
 router.get('/active-users', authMiddleware, getActiveUsers);
+router.get('/pending-verifications', authMiddleware, getPendingVerifications);
+router.get('/offers', authMiddleware, getAllOffers);
+router.get('/offers-stats', authMiddleware, getOffersStats);
+router.patch('/offers/:offerId/toggle', authMiddleware, toggleOfferStatus);
+router.delete('/offers/:offerId', authMiddleware, deleteOfferByAdmin);
 
 export default router;

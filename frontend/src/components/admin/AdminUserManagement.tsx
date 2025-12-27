@@ -11,7 +11,7 @@ import {
   SearchIcon
 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
-import { adminAPI } from '../../lib/adminAPI';
+import { updateUserRole, deleteUser } from '../../lib/adminAPI';
 
 interface User {
   _id: string;
@@ -38,8 +38,14 @@ export function AdminUserManagement() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const response = await adminAPI.getAllUsers();
-      setUsers(response.users || []);
+      const response = await fetch('http://localhost:5000/api/admin/users', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      });
+      if (!response.ok) throw new Error('Failed to load users');
+      const data = await response.json();
+      setUsers(data.users || []);
     } catch (error: any) {
       toast({
         title: 'Error loading users',
@@ -53,7 +59,7 @@ export function AdminUserManagement() {
 
   const handleChangeRole = async (userId: string, newRole: 'user' | 'student' | 'vendor' | 'admin') => {
     try {
-      await adminAPI.updateUserRole(userId, newRole);
+      const response = await updateUserRole(userId, newRole);
       toast({
         title: 'Role updated',
         description: `User role changed to ${newRole}`,
@@ -72,12 +78,20 @@ export function AdminUserManagement() {
     if (!window.confirm(`Are you sure you want to delete ${username}?`)) return;
 
     try {
-      await adminAPI.deleteUser(userId);
+      await deleteUser(userId);
       toast({
         title: 'User deleted',
         description: `${username} has been removed`,
       });
       loadUsers();
+    } catch (error: any) {
+      toast({
+        title: 'Error deleting user',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
     } catch (error: any) {
       toast({
         title: 'Error deleting user',

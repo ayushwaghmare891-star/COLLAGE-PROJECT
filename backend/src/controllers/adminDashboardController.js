@@ -6,18 +6,33 @@ import { Discount } from '../models/Discount.js';
 // Admin Dashboard
 export const getAdminDashboard = async (req, res) => {
   try {
-    // Get counts
+    // Get counts for students
     const totalStudents = await Student.countDocuments();
-    const verifiedStudents = await Student.countDocuments({ verificationStatus: 'verified' });
-    const pendingVerifications = await Student.countDocuments({ verificationStatus: 'pending' });
+    const approvedStudents = await Student.countDocuments({ approvalStatus: 'approved' });
+    const pendingStudentApprovals = await Student.countDocuments({ approvalStatus: 'pending' });
+    const rejectedStudents = await Student.countDocuments({ approvalStatus: 'rejected' });
+    const activeStudents = await Student.countDocuments({ status: 'active', approvalStatus: 'approved' });
+    const suspendedStudents = await Student.countDocuments({ status: 'suspended' });
 
+    // Get counts for vendors
     const totalVendors = await Vendor.countDocuments();
-    const activeVendors = await Vendor.countDocuments({ status: 'active' });
+    const approvedVendors = await Vendor.countDocuments({ approvalStatus: 'approved' });
+    const pendingVendorApprovals = await Vendor.countDocuments({ approvalStatus: 'pending' });
+    const rejectedVendors = await Vendor.countDocuments({ approvalStatus: 'rejected' });
+    const activeVendors = await Vendor.countDocuments({ status: 'active', approvalStatus: 'approved' });
     const suspendedVendors = await Vendor.countDocuments({ status: 'suspended' });
 
+    // Get counts for offers
     const totalOffers = await Offer.countDocuments();
-    const activeOffers = await Offer.countDocuments({ status: 'active' });
+    const approvedOffers = await Offer.countDocuments({ approvalStatus: 'approved' });
+    const pendingOfferApprovals = await Offer.countDocuments({ approvalStatus: 'pending' });
+    const activeOffers = await Offer.countDocuments({ 
+      approvalStatus: 'approved',
+      isActive: true,
+      endDate: { $gte: new Date() }
+    });
 
+    // Get counts for discounts
     const totalDiscounts = await Discount.countDocuments();
     const monthlyDiscounts = await Discount.countDocuments({
       appliedDate: { $gte: new Date(new Date().setDate(1)) }
@@ -28,20 +43,27 @@ export const getAdminDashboard = async (req, res) => {
       dashboard: {
         students: {
           total: totalStudents,
-          verified: verifiedStudents,
-          pending: pendingVerifications,
-          verificationRate: totalStudents > 0 ? ((verifiedStudents / totalStudents) * 100).toFixed(2) + '%' : '0%'
+          approved: approvedStudents,
+          pending: pendingStudentApprovals,
+          rejected: rejectedStudents,
+          active: activeStudents,
+          suspended: suspendedStudents,
+          approvalRate: totalStudents > 0 ? ((approvedStudents / totalStudents) * 100).toFixed(2) + '%' : '0%'
         },
         vendors: {
           total: totalVendors,
+          approved: approvedVendors,
+          pending: pendingVendorApprovals,
+          rejected: rejectedVendors,
           active: activeVendors,
           suspended: suspendedVendors,
-          activationRate: totalVendors > 0 ? ((activeVendors / totalVendors) * 100).toFixed(2) + '%' : '0%'
+          approvalRate: totalVendors > 0 ? ((approvedVendors / totalVendors) * 100).toFixed(2) + '%' : '0%'
         },
         offers: {
           total: totalOffers,
-          active: activeOffers,
-          inactiveOrExpired: totalOffers - activeOffers
+          approved: approvedOffers,
+          pending: pendingOfferApprovals,
+          active: activeOffers
         },
         engagement: {
           totalDiscounts,
@@ -139,23 +161,34 @@ export const getVendors = async (req, res) => {
   }
 };
 
-// Verify student manually
+// Verify student manually - approve or reject
 export const verifyStudent = async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { status, remarks } = req.body; // status: 'verified', 'rejected'
+    const { approvalStatus, rejectionReason } = req.body; // 'approved', 'rejected'
+    const adminId = req.user?.id;
 
-    if (!['verified', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+    if (!['approved', 'rejected'].includes(approvalStatus)) {
+      return res.status(400).json({ message: 'Invalid approval status' });
+    }
+
+    if (approvalStatus === 'rejected' && !rejectionReason) {
+      return res.status(400).json({ message: 'Rejection reason is required' });
+    }
+
+    const updateData = {
+      approvalStatus,
+      approvedAt: new Date(),
+      approvedBy: adminId,
+    };
+
+    if (approvalStatus === 'rejected') {
+      updateData.rejectionReason = rejectionReason;
     }
 
     const student = await Student.findByIdAndUpdate(
       studentId,
-      {
-        verificationStatus: status,
-        verificationRemarks: remarks || '',
-        verificationDate: new Date()
-      },
+      updateData,
       { new: true }
     ).select('-password');
 
@@ -164,7 +197,7 @@ export const verifyStudent = async (req, res) => {
     }
 
     res.json({
-      message: `Student ${status} successfully`,
+      message: `Student ${approvalStatus} successfully`,
       student
     });
   } catch (error) {
@@ -176,20 +209,31 @@ export const verifyStudent = async (req, res) => {
 export const updateVendorStatus = async (req, res) => {
   try {
     const { vendorId } = req.params;
-    const { status, remarks } = req.body; // status: 'active', 'rejected', 'suspended'
+    const { approvalStatus, rejectionReason } = req.body; // 'approved', 'rejected'
+    const adminId = req.user?.id;
 
-    const validStatuses = ['active', 'rejected', 'suspended', 'pending-verification'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+    if (!['approved', 'rejected'].includes(approvalStatus)) {
+      return res.status(400).json({ message: 'Invalid approval status' });
+    }
+
+    if (approvalStatus === 'rejected' && !rejectionReason) {
+      return res.status(400).json({ message: 'Rejection reason is required' });
+    }
+
+    const updateData = {
+      approvalStatus,
+      approvedAt: new Date(),
+      approvedBy: adminId,
+      status: approvalStatus === 'approved' ? 'active' : 'inactive'
+    };
+
+    if (approvalStatus === 'rejected') {
+      updateData.rejectionReason = rejectionReason;
     }
 
     const vendor = await Vendor.findByIdAndUpdate(
       vendorId,
-      {
-        status,
-        approvalRemarks: remarks || '',
-        approvalDate: new Date()
-      },
+      updateData,
       { new: true }
     ).select('-password');
 
@@ -198,7 +242,7 @@ export const updateVendorStatus = async (req, res) => {
     }
 
     res.json({
-      message: `Vendor status updated to ${status}`,
+      message: `Vendor ${approvalStatus} successfully`,
       vendor
     });
   } catch (error) {
@@ -209,28 +253,61 @@ export const updateVendorStatus = async (req, res) => {
 // Get pending verifications
 export const getPendingVerifications = async (req, res) => {
   try {
-    const { type = 'student' } = req.query; // 'student' or 'vendor'
+    const { type = 'all', page = 1, limit = 10 } = req.query; // 'student', 'vendor', or 'all'
 
     let pendingData = [];
+    const skip = (page - 1) * limit;
 
     if (type === 'student' || type === 'all') {
-      const pendingStudents = await Student.find({ verificationStatus: 'pending' })
+      // Get students with pending approval
+      const pendingStudents = await Student.find({ 
+        approvalStatus: 'pending'
+      })
         .select('-password')
+        .sort({ createdAt: -1 })
         .lean();
-      pendingData.push(...pendingStudents.map(s => ({ ...s, type: 'student' })));
+      
+      pendingData.push(...pendingStudents.map(s => ({ 
+        ...s, 
+        type: 'student',
+        verificationStatus: 'pending-approval',
+        documentUploaded: s.studentIdUploadedAt ? true : false,
+        documentVerified: s.documentVerified
+      })));
     }
 
     if (type === 'vendor' || type === 'all') {
-      const pendingVendors = await Vendor.find({ status: 'pending-verification' })
+      // Get vendors with pending approval
+      const pendingVendors = await Vendor.find({ 
+        approvalStatus: 'pending'
+      })
         .select('-password')
+        .sort({ createdAt: -1 })
         .lean();
-      pendingData.push(...pendingVendors.map(v => ({ ...v, type: 'vendor' })));
+      
+      pendingData.push(...pendingVendors.map(v => ({ 
+        ...v, 
+        type: 'vendor',
+        verificationStatus: 'pending-approval',
+        documentUploaded: v.businessDocumentUploadedAt ? true : false,
+        documentVerified: v.documentVerified
+      })));
     }
+
+    // Apply pagination for mixed results
+    const paginatedData = pendingData.slice(skip, skip + parseInt(limit));
+    const total = pendingData.length;
 
     res.json({
       message: 'Pending verifications fetched successfully',
-      count: pendingData.length,
-      pending: pendingData
+      count: total,
+      pending: paginatedData,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit),
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching pending verifications', error: error.message });
@@ -490,5 +567,134 @@ export const markFraudulent = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error marking discount as fraudulent', error: error.message });
+  }
+};
+
+// Get all pending offers waiting for admin approval
+export const getPendingOffers = async (req, res) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    const offers = await Offer.find({ approvalStatus: 'pending' })
+      .populate('vendorId', 'businessName email vendorId')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const total = await Offer.countDocuments({ approvalStatus: 'pending' });
+
+    res.json({
+      message: 'Pending offers fetched successfully',
+      offers,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching pending offers', error: error.message });
+  }
+};
+
+// Approve an offer created by vendor
+export const approveOffer = async (req, res) => {
+  try {
+    const { offerId } = req.params;
+    const adminId = req.user?.id;
+
+    const offer = await Offer.findByIdAndUpdate(
+      offerId,
+      {
+        approvalStatus: 'approved',
+        approvedBy: adminId,
+        approvedAt: new Date()
+      },
+      { new: true }
+    ).populate('vendorId', 'businessName email');
+
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+
+    res.json({
+      message: 'Offer approved successfully',
+      offer
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error approving offer', error: error.message });
+  }
+};
+
+// Reject an offer with reason
+export const rejectOffer = async (req, res) => {
+  try {
+    const { offerId } = req.params;
+    const { rejectionReason } = req.body;
+    const adminId = req.user?.id;
+
+    if (!rejectionReason || rejectionReason.trim() === '') {
+      return res.status(400).json({ message: 'Rejection reason is required' });
+    }
+
+    const offer = await Offer.findByIdAndUpdate(
+      offerId,
+      {
+        approvalStatus: 'rejected',
+        approvedBy: adminId,
+        approvedAt: new Date(),
+        rejectionReason
+      },
+      { new: true }
+    ).populate('vendorId', 'businessName email');
+
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+
+    res.json({
+      message: 'Offer rejected successfully',
+      offer
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error rejecting offer', error: error.message });
+  }
+};
+
+// Get all offers with approval status filter
+export const getAllOffers = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, approvalStatus = 'approved' } = req.query;
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (approvalStatus !== 'all') {
+      filter.approvalStatus = approvalStatus;
+    }
+
+    const offers = await Offer.find(filter)
+      .populate('vendorId', 'businessName email vendorId status')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const total = await Offer.countDocuments(filter);
+
+    res.json({
+      message: 'Offers fetched successfully',
+      offers,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching offers', error: error.message });
   }
 };

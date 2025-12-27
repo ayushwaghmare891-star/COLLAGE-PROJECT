@@ -50,7 +50,6 @@ const adminSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: ['admin'],
-      default: 'admin',
     },
     status: {
       type: String,
@@ -69,6 +68,13 @@ const adminSchema = new mongoose.Schema(
       type: [String],
       default: ['manage_users', 'manage_vendors', 'manage_students', 'view_analytics'],
     },
+    redeemedOffers: [
+      {
+        offerId: mongoose.Schema.Types.ObjectId,
+        code: String,
+        redeemedAt: Date,
+      }
+    ],
   },
   { timestamps: true }
 );
@@ -161,6 +167,13 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    redeemedOffers: [
+      {
+        offerId: mongoose.Schema.Types.ObjectId,
+        code: String,
+        redeemedAt: Date,
+      }
+    ],
   },
   { timestamps: true }
 );

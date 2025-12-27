@@ -13,15 +13,22 @@ interface ActiveUsersStats {
   vendors: { total: number; online: number; offline: number };
 }
 
+interface OffersStats {
+  activeOffers: number;
+  changePercentage: string;
+}
+
 export function AdminDashboard() {
   const navigate = useNavigate();
   const [activeUsersStats, setActiveUsersStats] = useState<ActiveUsersStats | null>(null);
+  const [offersStats, setOffersStats] = useState<OffersStats | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     window.scrollTo(0, 0);
     fetchActiveUsers();
+    fetchOffersStats();
   }, []);
 
   const fetchActiveUsers = async () => {
@@ -29,7 +36,7 @@ export function AdminDashboard() {
       setLoading(true);
       const response = await fetch('http://localhost:5000/api/admin/active-users', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }
       });
 
@@ -45,12 +52,29 @@ export function AdminDashboard() {
     }
   };
 
+  const fetchOffersStats = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/offers-stats', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setOffersStats(data);
+      }
+    } catch (error: any) {
+      console.log('Note: Could not fetch offers stats');
+    }
+  };
+
   const stats = [
     { label: 'Total Users', value: activeUsersStats?.totalUsers || '0', icon: UsersIcon, bgGradient: 'from-indigo-600 to-indigo-700', iconColor: 'text-indigo-100', change: `${activeUsersStats?.onlineUsers || 0} online` },
     { label: 'Online Now', value: activeUsersStats?.onlineUsers || '0', icon: UserCheckIcon, bgGradient: 'from-emerald-600 to-teal-600', iconColor: 'text-emerald-100', change: '🟢 Live' },
     { label: 'Students Online', value: activeUsersStats?.students.online || '0', icon: UsersIcon, bgGradient: 'from-blue-600 to-cyan-600', iconColor: 'text-blue-100', change: `${activeUsersStats?.students.total || 0} total` },
     { label: 'Vendors Online', value: activeUsersStats?.vendors.online || '0', icon: BuildingIcon, bgGradient: 'from-purple-600 to-pink-600', iconColor: 'text-purple-100', change: `${activeUsersStats?.vendors.total || 0} total` },
-    { label: 'Active Offers', value: '342', icon: TagIcon, bgGradient: 'from-orange-600 to-red-600', iconColor: 'text-orange-100', change: '+15% today' },
+    { label: 'Active Offers', value: offersStats?.activeOffers || '-', icon: TagIcon, bgGradient: 'from-orange-600 to-red-600', iconColor: 'text-orange-100', change: offersStats?.changePercentage || '-' },
   ];
 
   const recentActivity = [

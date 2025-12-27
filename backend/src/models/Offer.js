@@ -86,6 +86,24 @@ const offerSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    approvedAt: {
+      type: Date,
+      default: null,
+    },
+    rejectionReason: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );
@@ -94,5 +112,6 @@ const offerSchema = new mongoose.Schema(
 offerSchema.index({ vendorId: 1 });
 offerSchema.index({ isActive: 1, endDate: 1 });
 offerSchema.index({ code: 1 });
+offerSchema.index({ approvalStatus: 1 });
 
 export const Offer = mongoose.model('Offer', offerSchema);

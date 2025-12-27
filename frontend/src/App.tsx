@@ -24,7 +24,10 @@ import { VendorSettings } from './components/vendor/VendorSettings';
 import { AdminSettings } from './components/admin/AdminSettings';
 import { AdminStudents } from './components/admin/AdminStudents';
 import { AdminVendors } from './components/admin/AdminVendors';
+import { AdminVerifications } from './components/admin/AdminVerifications';
+import { AdminOffers } from './components/admin/AdminOffers';
 import { LandingPage } from './components/LandingPage';
+import { initializeAPIHealthCheck } from './lib/healthCheck';
 
 
 function App() {
@@ -34,6 +37,13 @@ function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Initialize API health check on app startup
+  useEffect(() => {
+    initializeAPIHealthCheck().catch(error => {
+      console.error('Failed to initialize API health check:', error);
+    });
+  }, []);
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -118,6 +128,16 @@ function App() {
           <Route path="/admin/vendors" element={
             <ProtectedRoute requiredRole="admin">
               <AdminAppShell><AdminVendors /></AdminAppShell>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/verifications" element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminAppShell><AdminVerifications /></AdminAppShell>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/offers" element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminAppShell><AdminOffers /></AdminAppShell>
             </ProtectedRoute>
           } />
         </Routes>

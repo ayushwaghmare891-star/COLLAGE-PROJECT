@@ -104,7 +104,7 @@ export const createOffer = async (req, res) => {
     console.log(`Offer created: ${offer._id} with isActive: ${offer.isActive}`);
 
     res.status(201).json({
-      message: 'Offer created successfully',
+      message: 'Offer created successfully. It will be visible after admin approval.',
       offer: {
         id: offer._id,
         title: offer.title,
@@ -115,6 +115,7 @@ export const createOffer = async (req, res) => {
         isActive: offer.isActive,
         startDate: offer.startDate,
         endDate: offer.endDate,
+        approvalStatus: offer.approvalStatus,
       },
       vendor: {
         vendorId: vendor.vendorId,
@@ -312,10 +313,11 @@ export const getAllActiveOffers = async (req, res) => {
     const { category, skip = 0, limit = 100, search } = req.query;
     const now = new Date();
 
-    // Build filter for active, non-expired offers
+    // Build filter for active, non-expired, APPROVED offers
     const filter = {
       isActive: true,
       endDate: { $gte: now },
+      approvalStatus: 'approved' // Only show approved offers to students
     };
 
     if (category && category !== 'all') {
@@ -566,10 +568,54 @@ export const redeemOffer = async (req, res) => {
       return res.status(400).json({ message: 'Offer usage limit reached' });
     }
 
-    // Find student and check if already redeemed
-    const student = await Student.findById(studentId);
+    // Find student in Student collection
+    let student = await Student.findById(userId);
+    
+    // If not found in Student collection, try User
     if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Track redemptions in User model
+      if (!user.redeemedOffers) {
+        user.redeemedOffers = [];
+      }
+      
+      // Check if already redeemed
+      const alreadyRedeemed = user.redeemedOffers.some(
+        (redeemedOffer) => redeemedOffer.offerId && redeemedOffer.offerId.toString() === offer._id.toString()
+      );
+
+      if (alreadyRedeemed) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'You have already redeemed this offer! Each user can use this offer only once.' 
+        });
+      }
+
+      user.redeemedOffers.push({
+        offerId: offer._id,
+        code: offer.code,
+        redeemedAt: now,
+      });
+
+      await user.save();
+
+      offer.usedCount = (offer.usedCount || 0) + 1;
+      await offer.save();
+
+      return res.json({
+        success: true,
+        message: 'Offer redeemed successfully',
+        redeemedOffer: {
+          offerId: offer._id,
+          title: offer.title,
+          code: offer.code,
+          redeemedAt: now,
+        },
+      });
     }
 
     // Ensure redeemedOffers array exists

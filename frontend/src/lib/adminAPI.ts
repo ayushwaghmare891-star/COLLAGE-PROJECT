@@ -155,3 +155,23 @@ export const handleDispute = async (discountId: string, resolution: string, rema
   if (!response.ok) throw new Error('Failed to handle dispute');
   return response.json();
 };
+
+// Admin user management endpoints
+export const updateUserRole = async (userId: string, role: string) => {
+  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ role }),
+  });
+  if (!response.ok) throw new Error('Failed to update user role');
+  return response.json();
+};
+
+export const deleteUser = async (userId: string) => {
+  const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to delete user');
+  return response.json();
+};

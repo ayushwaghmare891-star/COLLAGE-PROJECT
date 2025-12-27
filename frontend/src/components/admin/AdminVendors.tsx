@@ -38,7 +38,7 @@ export function AdminVendors() {
   const fetchVendors = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('auth_token');
       
       if (!token) {
         throw new Error('No authentication token found. Please login again.');
@@ -82,7 +82,7 @@ export function AdminVendors() {
       const response = await fetch(`http://localhost:5000/api/admin/users/${id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }
       });
 

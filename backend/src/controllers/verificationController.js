@@ -2,6 +2,7 @@ import nodemailer from 'nodemailer';
 import { User, Admin } from '../models/User.js';
 import { Student } from '../models/Student.js';
 import { Vendor } from '../models/Vendor.js';
+import { VerificationDocument } from '../models/VerificationDocument.js';
 
 // Create transporter - use test account if credentials not available
 let transporter;
@@ -357,8 +358,8 @@ export const getVerificationStatus = async (req, res) => {
       });
     }
 
-    // If not found in Student, try User collection
-    const user = await User.findById(userId).select('isEmailVerified studentIdDocument studentIdUploadedAt');
+    // Try User collection (general users)
+    let user = await User.findById(userId).select('isEmailVerified studentIdDocument studentIdUploadedAt');
     
     if (user) {
       return res.status(200).json({
@@ -371,6 +372,32 @@ export const getVerificationStatus = async (req, res) => {
       });
     }
 
+    // Try Admin collection
+    const admin = await Admin.findById(userId).select('isEmailVerified');
+    if (admin) {
+      return res.status(200).json({
+        success: true,
+        verificationStatus: 'verified',
+        isVerified: true,
+        isEmailVerified: admin.isEmailVerified,
+        documentVerified: false,
+        uploadedAt: null,
+      });
+    }
+
+    // Try Vendor collection
+    const vendor = await Vendor.findById(userId).select('isEmailVerified');
+    if (vendor) {
+      return res.status(200).json({
+        success: true,
+        verificationStatus: 'verified',
+        isVerified: true,
+        isEmailVerified: vendor.isEmailVerified,
+        documentVerified: false,
+        uploadedAt: null,
+      });
+    }
+
     return res.status(404).json({
       success: false,
       message: 'User not found',
@@ -380,6 +407,277 @@ export const getVerificationStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error getting verification status',
+      error: error.message,
+    });
+  }
+};
+
+// Upload document for student verification
+export const uploadStudentDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const userId = req.userId; // From auth middleware
+    const { documentType = 'student-id' } = req.body;
+
+    // Validate document type
+    const validDocTypes = ['student-id', 'aadhar', 'passport', 'other'];
+    if (!validDocTypes.includes(documentType)) {
+      return res.status(400).json({ message: 'Invalid document type' });
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ message: 'Invalid file type. Only images and PDFs are allowed' });
+    }
+
+    // Check if student exists
+    const student = await Student.findById(userId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    const fileName = req.file.filename || `student-${userId}-${Date.now()}`;
+    const filePath = `/uploads/documents/${fileName}`;
+
+    // Create verification document record
+    const verificationDoc = new VerificationDocument({
+      userId,
+      userType: 'student',
+      documentType,
+      documentPath: filePath,
+      documentFileName: fileName,
+      documentSize: req.file.size,
+      mimeType: req.file.mimetype,
+      status: 'pending',
+    });
+
+    await verificationDoc.save();
+
+    // Update student with document reference
+    await Student.findByIdAndUpdate(userId, {
+      studentIdDocument: filePath,
+      studentIdFileName: fileName,
+      studentIdUploadedAt: new Date(),
+    });
+
+    res.status(201).json({
+      message: 'Student document uploaded successfully and is pending verification',
+      success: true,
+      verificationDocument: {
+        id: verificationDoc._id,
+        status: verificationDoc.status,
+        uploadedAt: verificationDoc.uploadedAt,
+      },
+      file: {
+        fileName,
+        filePath,
+        fileSize: req.file.size,
+      },
+    });
+  } catch (error) {
+    console.error('Error uploading student document:', error);
+    res.status(500).json({
+      message: 'Error uploading student document',
+      error: error.message,
+    });
+  }
+};
+
+// Upload document for vendor verification
+export const uploadVendorDocument = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const userId = req.userId; // From auth middleware
+    const { documentType = 'business-license' } = req.body;
+
+    // Validate document type
+    const validDocTypes = ['business-license', 'pan', 'aadhar', 'other'];
+    if (!validDocTypes.includes(documentType)) {
+      return res.status(400).json({ message: 'Invalid document type' });
+    }
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+      return res.status(400).json({ message: 'Invalid file type. Only images and PDFs are allowed' });
+    }
+
+    // Check if vendor exists
+    const vendor = await Vendor.findById(userId);
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
+    }
+
+    const fileName = req.file.filename || `vendor-${userId}-${Date.now()}`;
+    const filePath = `/uploads/documents/${fileName}`;
+
+    // Create verification document record
+    const verificationDoc = new VerificationDocument({
+      userId,
+      userType: 'vendor',
+      documentType,
+      documentPath: filePath,
+      documentFileName: fileName,
+      documentSize: req.file.size,
+      mimeType: req.file.mimetype,
+      status: 'pending',
+    });
+
+    await verificationDoc.save();
+
+    // Update vendor with document reference and set status to pending-verification
+    await Vendor.findByIdAndUpdate(userId, {
+      businessDocument: filePath,
+      businessDocumentFileName: fileName,
+      businessDocumentUploadedAt: new Date(),
+      status: 'pending-verification',
+    });
+
+    res.status(201).json({
+      message: 'Vendor document uploaded successfully and is pending verification',
+      success: true,
+      verificationDocument: {
+        id: verificationDoc._id,
+        status: verificationDoc.status,
+        uploadedAt: verificationDoc.uploadedAt,
+      },
+      file: {
+        fileName,
+        filePath,
+        fileSize: req.file.size,
+      },
+    });
+  } catch (error) {
+    console.error('Error uploading vendor document:', error);
+    res.status(500).json({
+      message: 'Error uploading vendor document',
+      error: error.message,
+    });
+  }
+};
+
+// Get all pending verification documents for admin
+export const getPendingDocuments = async (req, res) => {
+  try {
+    const { userType = 'all', page = 1, limit = 10 } = req.query;
+    const skip = (page - 1) * limit;
+
+    let filter = { status: 'pending' };
+    
+    if (userType !== 'all') {
+      filter.userType = userType; // 'student' or 'vendor'
+    }
+
+    const pendingDocuments = await VerificationDocument.find(filter)
+      .sort({ uploadedAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .populate('userId', 'username email businessName ownerFirstName studentId vendorId')
+      .lean();
+
+    const total = await VerificationDocument.countDocuments(filter);
+
+    // Enrich documents with user details
+    const enrichedDocuments = await Promise.all(
+      pendingDocuments.map(async (doc) => {
+        let userDetails = {};
+        if (doc.userType === 'student') {
+          const student = await Student.findById(doc.userId, 'username email firstName lastName studentId college').lean();
+          userDetails = {
+            name: `${student?.firstName || ''} ${student?.lastName || ''}`.trim() || student?.username,
+            email: student?.email,
+            studentId: student?.studentId,
+            college: student?.college,
+          };
+        } else if (doc.userType === 'vendor') {
+          const vendor = await Vendor.findById(doc.userId, 'businessName email ownerFirstName ownerLastName vendorId').lean();
+          userDetails = {
+            name: vendor?.businessName,
+            ownerName: `${vendor?.ownerFirstName || ''} ${vendor?.ownerLastName || ''}`.trim(),
+            email: vendor?.email,
+            vendorId: vendor?.vendorId,
+          };
+        }
+        return { ...doc, userDetails };
+      })
+    );
+
+    res.json({
+      message: 'Pending verification documents fetched successfully',
+      documents: enrichedDocuments,
+      pagination: {
+        total,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching pending documents:', error);
+    res.status(500).json({
+      message: 'Error fetching pending documents',
+      error: error.message,
+    });
+  }
+};
+
+// Verify/approve a document
+export const verifyDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { status, remarks } = req.body; // status: 'verified' or 'rejected'
+    const adminId = req.userId; // From auth middleware
+
+    // Validate status
+    if (!['verified', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status. Must be "verified" or "rejected"' });
+    }
+
+    // Find and update verification document
+    const verificationDoc = await VerificationDocument.findByIdAndUpdate(
+      documentId,
+      {
+        status,
+        verifiedBy: adminId,
+        verifiedAt: new Date(),
+        remarks: remarks || '',
+      },
+      { new: true }
+    );
+
+    if (!verificationDoc) {
+      return res.status(404).json({ message: 'Verification document not found' });
+    }
+
+    // Update user based on status
+    if (verificationDoc.userType === 'student') {
+      await Student.findByIdAndUpdate(verificationDoc.userId, {
+        documentVerified: status === 'verified',
+      });
+    } else if (verificationDoc.userType === 'vendor') {
+      const newStatus = status === 'verified' ? 'active' : 'pending-verification';
+      await Vendor.findByIdAndUpdate(verificationDoc.userId, {
+        documentVerified: status === 'verified',
+        status: newStatus,
+      });
+    }
+
+    res.json({
+      message: `Document ${status} successfully`,
+      success: true,
+      verificationDocument: verificationDoc,
+    });
+  } catch (error) {
+    console.error('Error verifying document:', error);
+    res.status(500).json({
+      message: 'Error verifying document',
       error: error.message,
     });
   }

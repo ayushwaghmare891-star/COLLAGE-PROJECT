@@ -13,7 +13,11 @@ import {
   suspendStudent,
   suspendVendor,
   getFraudReports,
-  markFraudulent
+  markFraudulent,
+  getPendingOffers,
+  approveOffer,
+  rejectOffer,
+  getAllOffers
 } from '../controllers/adminDashboardController.js';
 
 const router = express.Router();
@@ -43,5 +47,11 @@ router.get('/pending-verifications', getPendingVerifications);
 router.get('/fraud-reports', getFraudReports);
 router.post('/discounts/:discountId/mark-fraudulent', markFraudulent);
 router.post('/discounts/:discountId/handle-dispute', handleDispute);
+
+// Offer management
+router.get('/offers/pending', getPendingOffers);
+router.get('/offers', getAllOffers);
+router.post('/offers/:offerId/approve', approveOffer);
+router.post('/offers/:offerId/reject', rejectOffer);
 
 export default router;

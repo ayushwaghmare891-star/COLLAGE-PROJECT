@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { API_BASE_URL, getHeaders } from './api';
 
 export interface OfferData {
   id?: string;
@@ -15,13 +15,10 @@ export interface OfferData {
 }
 
 // Fetch vendor's own offers
-export const fetchVendorOffers = async (token: string) => {
+export const fetchVendorOffers = async () => {
   const response = await fetch(`${API_BASE_URL}/offers/my-offers`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getHeaders(),
   });
 
   if (!response.ok) {
@@ -33,30 +30,61 @@ export const fetchVendorOffers = async (token: string) => {
 };
 
 // Fetch all active offers (for students/admins)
-export const fetchAllActiveOffers = async () => {
-  const response = await fetch(`${API_BASE_URL}/offers/active`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+export const fetchAllActiveOffers = async (category?: string, search?: string) => {
+  try {
+    const params = new URLSearchParams();
+    
+    if (category && category !== 'all') {
+      params.append('category', category);
+    }
+    
+    if (search) {
+      params.append('search', search);
+    }
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to fetch offers');
+    const url = params.toString() 
+      ? `${API_BASE_URL}/offers/active?${params.toString()}`
+      : `${API_BASE_URL}/offers/active`;
+
+    console.log('Fetching offers from:', url);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Response status:', response.status);
+      console.error('Response body:', errorText);
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        throw new Error(errorData.message || `Failed to fetch offers (${response.status})`);
+      } catch (parseError) {
+        throw new Error(`Failed to fetch offers: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    const data = await response.json();
+    console.log('Successfully fetched offers:', data);
+    return data;
+  } catch (error) {
+    console.error('Error in fetchAllActiveOffers:', error);
+    if (error instanceof TypeError) {
+      throw new Error(`Network error: ${error.message}. Make sure the backend server is running on ${API_BASE_URL}`);
+    }
+    throw error;
   }
-
-  return response.json();
 };
 
 // Create a new offer
-export const createOffer = async (token: string, offerData: OfferData) => {
+export const createOffer = async (offerData: OfferData) => {
   const response = await fetch(`${API_BASE_URL}/offers/create`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getHeaders(),
     body: JSON.stringify(offerData),
   });
 
@@ -69,13 +97,10 @@ export const createOffer = async (token: string, offerData: OfferData) => {
 };
 
 // Update an offer
-export const updateOffer = async (token: string, offerId: string, updates: Partial<OfferData>) => {
+export const updateOffer = async (offerId: string, updates: Partial<OfferData>) => {
   const response = await fetch(`${API_BASE_URL}/offers/update/${offerId}`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getHeaders(),
     body: JSON.stringify(updates),
   });
 
@@ -88,13 +113,10 @@ export const updateOffer = async (token: string, offerId: string, updates: Parti
 };
 
 // Delete an offer
-export const deleteOffer = async (token: string, offerId: string) => {
+export const deleteOffer = async (offerId: string) => {
   const response = await fetch(`${API_BASE_URL}/offers/delete/${offerId}`, {
     method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getHeaders(),
   });
 
   if (!response.ok) {
@@ -106,18 +128,78 @@ export const deleteOffer = async (token: string, offerId: string) => {
 };
 
 // Toggle offer status
-export const toggleOfferStatus = async (token: string, offerId: string) => {
+export const toggleOfferStatus = async (offerId: string) => {
   const response = await fetch(`${API_BASE_URL}/offers/toggle/${offerId}`, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
+    headers: getHeaders(),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || 'Failed to toggle offer status');
+  }
+
+  return response.json();
+};
+
+// Get offer details by ID
+export const getOfferById = async (offerId: string) => {
+  const response = await fetch(`${API_BASE_URL}/offers/detail/${offerId}`, {
+    method: 'GET',
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to fetch offer details');
+  }
+
+  return response.json();
+};
+
+// Get offer by code
+export const getOfferByCode = async (code: string) => {
+  const response = await fetch(`${API_BASE_URL}/offers/code/${code}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to fetch offer by code');
+  }
+
+  return response.json();
+};
+
+// Get offer statistics
+export const getOfferStats = async () => {
+  const response = await fetch(`${API_BASE_URL}/offers/stats`, {
+    method: 'GET',
+    headers: getHeaders(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to fetch offer statistics');
+  }
+
+  return response.json();
+};
+
+// Redeem an offer
+export const redeemOffer = async (offerId: string) => {
+  const response = await fetch(`${API_BASE_URL}/offers/redeem`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ offerId }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Failed to redeem offer');
   }
 
   return response.json();

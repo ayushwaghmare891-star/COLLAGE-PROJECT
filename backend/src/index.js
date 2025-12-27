@@ -28,12 +28,16 @@ const PORT = process.env.PORT || 5000;
 // Create uploads directories if they don't exist
 const uploadsDir = path.join(process.cwd(), 'uploads');
 const studentIdsDir = path.join(uploadsDir, 'student-ids');
+const documentsDir = path.join(uploadsDir, 'documents');
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 if (!fs.existsSync(studentIdsDir)) {
   fs.mkdirSync(studentIdsDir, { recursive: true });
+}
+if (!fs.existsSync(documentsDir)) {
+  fs.mkdirSync(documentsDir, { recursive: true });
 }
 
 // Middleware

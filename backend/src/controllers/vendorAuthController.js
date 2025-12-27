@@ -82,6 +82,9 @@ export const vendorRegister = async (req, res) => {
         status: vendor.status,
         type: 'vendor',
       },
+      requiresDocumentVerification: true,
+      documentUploadUrl: '/api/verification/upload-vendor-document',
+      verificationStatus: 'pending',
     });
   } catch (error) {
     // Handle MongoDB validation errors
@@ -108,6 +111,20 @@ export const vendorLogin = async (req, res) => {
     const vendor = await Vendor.findOne({ email });
     if (!vendor) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // Check if vendor is approved by admin
+    if (vendor.approvalStatus === 'pending') {
+      return res.status(403).json({ 
+        message: 'Your vendor account is pending admin approval. Please wait for verification.' 
+      });
+    }
+
+    if (vendor.approvalStatus === 'rejected') {
+      return res.status(403).json({ 
+        message: 'Your vendor account has been rejected. Reason: ' + (vendor.rejectionReason || 'Not specified'),
+        rejectionReason: vendor.rejectionReason
+      });
     }
 
     // Check if vendor account is active or pending verification

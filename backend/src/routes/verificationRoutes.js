@@ -8,6 +8,10 @@ import {
   resendVerificationEmail,
   uploadStudentId,
   getVerificationStatus,
+  uploadStudentDocument,
+  uploadVendorDocument,
+  getPendingDocuments,
+  verifyDocument,
 } from '../controllers/verificationController.js';
 
 const router = express.Router();
@@ -15,11 +19,11 @@ const router = express.Router();
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/student-ids/');
+    cb(null, 'uploads/documents/');
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'student-id-' + uniqueSuffix + path.extname(file.originalname));
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
@@ -51,5 +55,13 @@ router.get('/:userId/status', getVerificationStatus);
 
 // File upload route - single file with field name 'studentId'
 router.post('/upload-student-id', authMiddleware, upload.single('studentId'), uploadStudentId);
+
+// New document upload routes
+router.post('/upload-student-document', authMiddleware, upload.single('document'), uploadStudentDocument);
+router.post('/upload-vendor-document', authMiddleware, upload.single('document'), uploadVendorDocument);
+
+// Admin verification routes
+router.get('/pending-documents', authMiddleware, getPendingDocuments);
+router.post('/verify-document/:documentId', authMiddleware, verifyDocument);
 
 export default router;
