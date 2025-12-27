@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate } from '../middleware/auth.js';
+import { authMiddleware } from '../middleware/auth.js';
 import {
   getVendorDashboard,
   createOffer,
@@ -15,7 +15,7 @@ import {
 const router = express.Router();
 
 // All routes require authentication and vendor role
-router.use(authenticate);
+router.use(authMiddleware);
 
 // Dashboard routes
 router.get('/dashboard', getVendorDashboard);
