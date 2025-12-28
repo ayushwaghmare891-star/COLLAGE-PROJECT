@@ -2,6 +2,7 @@ import { User } from '../models/User.js';
 import { Offer } from '../models/Offer.js';
 import { Student } from '../models/Student.js';
 import { Vendor } from '../models/Vendor.js';
+import { Discount } from '../models/Discount.js';
 
 export const getAllUsers = async (req, res) => {
   try {
@@ -97,10 +98,9 @@ export const deleteUser = async (req, res) => {
 
 export const getStudents = async (req, res) => {
   try {
-    const students = await User.find({ role: 'student' }).select('-password');
+    const students = await Student.find().select('-password').lean();
     res.json({ 
       message: 'Students fetched successfully', 
-      count: students.length,
       students 
     });
   } catch (error) {
@@ -110,10 +110,9 @@ export const getStudents = async (req, res) => {
 
 export const getVendors = async (req, res) => {
   try {
-    const vendors = await User.find({ role: 'vendor' }).select('-password');
+    const vendors = await Vendor.find().select('-password').lean();
     res.json({ 
       message: 'Vendors fetched successfully', 
-      count: vendors.length,
       vendors 
     });
   } catch (error) {
@@ -159,13 +158,27 @@ export const getActiveUsers = async (req, res) => {
 export const getAllOffers = async (req, res) => {
   try {
     const offers = await Offer.find()
-      .populate('vendorId', 'username email')
+      .populate('vendorId', 'businessName email vendorId')
       .sort({ createdAt: -1 });
+    
+    // Get redemption count for each offer
+    const offersWithRedemptions = await Promise.all(
+      offers.map(async (offer) => {
+        const redemptionCount = await Discount.countDocuments({
+          offer: offer._id,
+          status: 'redeemed'
+        });
+        return {
+          ...offer.toObject(),
+          studentRedemptionCount: redemptionCount || 0
+        };
+      })
+    );
     
     res.json({
       message: 'Offers fetched successfully',
-      offers,
-      count: offers.length
+      offers: offersWithRedemptions,
+      count: offersWithRedemptions.length
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching offers', error: error.message });
@@ -226,5 +239,59 @@ export const deleteOfferByAdmin = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error deleting offer', error: error.message });
+  }
+};
+
+export const approveOffer = async (req, res) => {
+  try {
+    const { offerId } = req.params;
+    const { status, rejectionReason } = req.body;
+    const adminId = req.user?.id;
+
+    if (!adminId) {
+      return res.status(401).json({ message: 'Admin ID is required' });
+    }
+
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ message: 'Status must be approved or rejected' });
+    }
+
+    const offer = await Offer.findById(offerId);
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+
+    offer.approvalStatus = status;
+    offer.approvedBy = adminId;
+    offer.approvedAt = new Date();
+    
+    if (status === 'rejected') {
+      offer.rejectionReason = rejectionReason || 'Rejected by admin';
+    }
+
+    await offer.save();
+
+    res.json({
+      message: `Offer ${status} successfully`,
+      offer
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error approving offer', error: error.message });
+  }
+};
+
+export const getPendingOffers = async (req, res) => {
+  try {
+    const offers = await Offer.find({ approvalStatus: 'pending' })
+      .populate('vendorId', 'businessName businessLogo email')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      message: 'Pending offers retrieved successfully',
+      offers,
+      total: offers.length
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching pending offers', error: error.message });
   }
 };

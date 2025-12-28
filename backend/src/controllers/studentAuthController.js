@@ -48,6 +48,7 @@ export const studentRegister = async (req, res) => {
       college,
       enrollmentYear,
       role: role || 'student', // Default to 'student' if role not provided
+      approvalStatus: 'approved', // Auto-approve students on registration so they can access offers immediately
     });
 
     await student.save();
@@ -55,7 +56,7 @@ export const studentRegister = async (req, res) => {
     const token = generateToken(student._id);
 
     res.status(201).json({
-      message: 'Student registered successfully. Please upload your ID document for verification.',
+      message: 'Student registered successfully. You can now browse and redeem offers!',
       token,
       user: {
         id: student._id,
@@ -66,8 +67,8 @@ export const studentRegister = async (req, res) => {
         lastName: student.lastName,
         type: 'student',
       },
-      requiresDocumentVerification: true,
-      documentUploadUrl: '/api/verification/upload-student-document',
+      verificationStatus: 'verified',
+      canAccessOffers: true,
     });
   } catch (error) {
     // Handle MongoDB validation errors
@@ -141,8 +142,13 @@ export const studentLogin = async (req, res) => {
         lastName: student.lastName,
         role: student.role,
         isEmailVerified: student.isEmailVerified,
+        approvalStatus: student.approvalStatus,
+        verificationStatus: student.approvalStatus === 'approved' ? 'verified' : 'pending',
         permissions: student.permissions || [],
+        savedOffersCount: student.savedOffers ? student.savedOffers.length : 0,
+        redeemedOffersCount: student.redeemedOffers ? student.redeemedOffers.length : 0,
       },
+      canAccessOffers: student.approvalStatus === 'approved',
     });
   } catch (error) {
     res.status(500).json({ message: 'Student login failed', error: error.message });

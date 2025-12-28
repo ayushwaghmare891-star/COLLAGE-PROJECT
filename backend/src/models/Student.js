@@ -126,6 +126,18 @@ const studentSchema = new mongoose.Schema(
         },
       },
     ],
+    savedOffers: [
+      {
+        offerId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'Offer',
+        },
+        savedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
   },
   { timestamps: true }
 );

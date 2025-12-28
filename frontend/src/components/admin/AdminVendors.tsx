@@ -14,10 +14,10 @@ import { useToast } from '../../hooks/use-toast';
 
 interface Vendor {
   _id: string;
-  username: string;
+  businessName: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  ownerFirstName: string;
+  ownerLastName: string;
   isEmailVerified: boolean;
   status: string;
   createdAt: string;
@@ -103,9 +103,9 @@ export function AdminVendors() {
   };
 
   const filteredVendors = vendors.filter(vendor => {
-    const matchesSearch = vendor.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = vendor.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          vendor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         `${vendor.firstName} ${vendor.lastName}`.toLowerCase().includes(searchTerm.toLowerCase());
+                         `${vendor.ownerFirstName} ${vendor.ownerLastName}`.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (statusFilter === 'active') return matchesSearch && vendor.status === 'active';
     if (statusFilter === 'inactive') return matchesSearch && vendor.status === 'inactive';
@@ -183,7 +183,7 @@ export function AdminVendors() {
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by username, email, or name..."
+                placeholder="Search by business name, email, or owner name..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -248,7 +248,7 @@ export function AdminVendors() {
                       <td className="py-4 px-4">
                         <div>
                           <p className="font-medium">{vendor.firstName} {vendor.lastName}</p>
-                          <p className="text-sm text-gray-500">@{vendor.username}</p>
+                          <p className="text-sm text-gray-500">{vendor.businessName}</p>
                         </div>
                       </td>
                       <td className="py-4 px-4">

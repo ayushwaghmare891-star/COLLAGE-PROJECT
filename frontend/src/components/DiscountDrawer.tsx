@@ -86,10 +86,10 @@ export function DiscountDrawer({ discount, isOpen, onClose }: DiscountDrawerProp
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Redeem error response:', { status: response.status, data });
+        console.error('Redeem error response:', { status: response.status, data, message: data.message });
         
         // Check if already redeemed
-        if (response.status === 400 && data.message.includes('already redeemed')) {
+        if (response.status === 400 && data.message && data.message.includes('already redeemed')) {
           setAlreadyRedeemed(true);
           toast({
             title: "Already Redeemed",

@@ -345,15 +345,24 @@ export const getVerificationStatus = async (req, res) => {
     }
 
     // Search in Student collection first
-    let student = await Student.findById(userId).select('studentId isEmailVerified documentVerified studentIdUploadedAt');
+    let student = await Student.findById(userId).select('studentId isEmailVerified documentVerified approvalStatus studentIdUploadedAt');
     
     if (student) {
+      // Check approvalStatus first - if approved, status is verified
+      let verificationStatus = 'not-verified';
+      if (student.approvalStatus === 'approved') {
+        verificationStatus = 'verified';
+      } else if (student.approvalStatus === 'pending' || student.studentIdUploadedAt) {
+        verificationStatus = 'pending';
+      }
+      
       return res.status(200).json({
         success: true,
-        verificationStatus: student.documentVerified ? 'verified' : student.studentIdUploadedAt ? 'pending' : 'not-verified',
-        isVerified: student.documentVerified,
+        verificationStatus: verificationStatus,
+        isVerified: student.approvalStatus === 'approved' || student.documentVerified,
         isEmailVerified: student.isEmailVerified,
         documentVerified: student.documentVerified,
+        approvalStatus: student.approvalStatus,
         uploadedAt: student.studentIdUploadedAt,
       });
     }
@@ -457,11 +466,12 @@ export const uploadStudentDocument = async (req, res) => {
 
     await verificationDoc.save();
 
-    // Update student with document reference
+    // Update student with document reference and set approval status to pending
     await Student.findByIdAndUpdate(userId, {
       studentIdDocument: filePath,
       studentIdFileName: fileName,
       studentIdUploadedAt: new Date(),
+      approvalStatus: 'pending', // Student is now requesting verification
     });
 
     res.status(201).json({
@@ -660,6 +670,8 @@ export const verifyDocument = async (req, res) => {
     if (verificationDoc.userType === 'student') {
       await Student.findByIdAndUpdate(verificationDoc.userId, {
         documentVerified: status === 'verified',
+        // Set approval status based on document verification
+        approvalStatus: status === 'verified' ? 'approved' : 'rejected',
       });
     } else if (verificationDoc.userType === 'vendor') {
       const newStatus = status === 'verified' ? 'active' : 'pending-verification';
@@ -678,6 +690,120 @@ export const verifyDocument = async (req, res) => {
     console.error('Error verifying document:', error);
     res.status(500).json({
       message: 'Error verifying document',
+      error: error.message,
+    });
+  }
+};
+
+// Approve verification document
+export const approveVerification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user?.id;
+
+    // Find the verification document
+    const verificationDoc = await VerificationDocument.findById(id);
+    
+    if (!verificationDoc) {
+      return res.status(404).json({ message: 'Verification document not found' });
+    }
+
+    // Update verification document status
+    verificationDoc.status = 'verified';
+    verificationDoc.verifiedBy = adminId;
+    verificationDoc.verifiedAt = new Date();
+    await verificationDoc.save();
+
+    // Update the user's document verification status
+    if (verificationDoc.userType === 'student') {
+      await Student.findByIdAndUpdate(
+        verificationDoc.userId,
+        {
+          documentVerified: true,
+          approvalStatus: 'approved',
+          approvedAt: new Date(),
+          approvedBy: adminId,
+        }
+      );
+    } else if (verificationDoc.userType === 'vendor') {
+      await Vendor.findByIdAndUpdate(
+        verificationDoc.userId,
+        {
+          documentVerified: true,
+          approvalStatus: 'approved',
+          approvedAt: new Date(),
+          approvedBy: adminId,
+        }
+      );
+    }
+
+    res.json({
+      message: 'Verification approved successfully',
+      success: true,
+      verificationDocument: verificationDoc,
+    });
+  } catch (error) {
+    console.error('Error approving verification:', error);
+    res.status(500).json({
+      message: 'Error approving verification',
+      error: error.message,
+    });
+  }
+};
+
+// Reject verification document
+export const rejectVerification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user?.id;
+
+    if (!reason) {
+      return res.status(400).json({ message: 'Rejection reason is required' });
+    }
+
+    // Find the verification document
+    const verificationDoc = await VerificationDocument.findById(id);
+    
+    if (!verificationDoc) {
+      return res.status(404).json({ message: 'Verification document not found' });
+    }
+
+    // Update verification document status
+    verificationDoc.status = 'rejected';
+    verificationDoc.verifiedBy = adminId;
+    verificationDoc.verifiedAt = new Date();
+    verificationDoc.rejectionReason = reason;
+    await verificationDoc.save();
+
+    // Update the user's document verification status
+    if (verificationDoc.userType === 'student') {
+      await Student.findByIdAndUpdate(
+        verificationDoc.userId,
+        {
+          approvalStatus: 'rejected',
+          rejectionReason: reason,
+        }
+      );
+    } else if (verificationDoc.userType === 'vendor') {
+      await Vendor.findByIdAndUpdate(
+        verificationDoc.userId,
+        {
+          approvalStatus: 'rejected',
+          rejectionReason: reason,
+        }
+      );
+    }
+
+    res.json({
+      message: 'Verification rejected successfully',
+      success: true,
+      verificationDocument: verificationDoc,
+    });
+  } catch (error) {
+    console.error('Error rejecting verification:', error);
+    res.status(500).json({
+      message: 'Error rejecting verification',
       error: error.message,
     });
   }

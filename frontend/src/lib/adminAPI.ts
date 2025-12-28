@@ -76,6 +76,28 @@ export const getPendingVerifications = async (type = 'all') => {
   return response.json();
 };
 
+// Approve student verification
+export const approveStudentVerification = async (studentId: string, remarks?: string) => {
+  const response = await fetch(`${ADMIN_API_BASE}/students/${studentId}/verify`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ approvalStatus: 'approved', remarks }),
+  });
+  if (!response.ok) throw new Error('Failed to approve student');
+  return response.json();
+};
+
+// Reject student verification
+export const rejectStudentVerification = async (studentId: string, rejectionReason: string) => {
+  const response = await fetch(`${ADMIN_API_BASE}/students/${studentId}/verify`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ approvalStatus: 'rejected', rejectionReason }),
+  });
+  if (!response.ok) throw new Error('Failed to reject student');
+  return response.json();
+};
+
 // Get vendor campaigns
 export const getVendorCampaigns = async (vendorId: string) => {
   const response = await fetch(`${ADMIN_API_BASE}/vendors/${vendorId}/campaigns`, {

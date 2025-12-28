@@ -55,43 +55,80 @@ connectDB();
 
 // Migration: Fix offers without codes on startup
 import { Offer } from './models/Offer.js';
+import { Vendor } from './models/Vendor.js';
 (async () => {
   try {
-    const offersWithoutCodes = await Offer.find({ code: { $in: [null, ''] } });
-    
-    if (offersWithoutCodes.length > 0) {
-      console.log(`Found ${offersWithoutCodes.length} offers without codes. Generating codes...`);
-      
-      for (const offer of offersWithoutCodes) {
-        let isUnique = false;
-        let attempts = 0;
-        let finalCode = '';
-        
-        while (!isUnique && attempts < 10) {
-          const timestamp = Date.now().toString().slice(-6);
-          const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-          finalCode = `${offer.title.substring(0, 3).toUpperCase()}${timestamp}${random}`;
-          
-          const existingCode = await Offer.findOne({ code: finalCode });
-          if (!existingCode) {
-            isUnique = true;
-          }
-          attempts++;
+    // Migration: Approve all vendors (for testing)
+    try {
+      const result = await Vendor.updateMany(
+        {},
+        { 
+          approvalStatus: 'approved',
+          status: 'active'
         }
+      );
+      
+      if (result.modifiedCount > 0) {
+        console.log(`✅ Auto-approved ${result.modifiedCount} vendors`);
+      } else {
+        console.log('All vendors are already approved');
+      }
+    } catch (err) {
+      console.error('Error approving vendors:', err.message);
+    }
+
+    // Migration: Delete offers without vendorId (orphaned offers)
+    try {
+      const allOffers = await Offer.find({}).lean();
+      
+      let fixedCount = 0;
+      let deletedCount = 0;
+      
+      for (const offerData of allOffers) {
+        const offer = await Offer.findById(offerData._id);
         
-        if (isUnique) {
-          offer.code = finalCode;
-          await offer.save();
-          console.log(`Generated code for offer "${offer.title}": ${finalCode}`);
+        // Check if vendorId is null, undefined, or empty
+        const hasValidVendorId = offer.vendorId && 
+                                 String(offer.vendorId).trim() !== '' && 
+                                 String(offer.vendorId) !== 'null' &&
+                                 String(offer.vendorId) !== 'undefined';
+        
+        if (!hasValidVendorId) {
+          console.log(`⚠️ Found offer "${offer.title}" with invalid vendorId:`, offer.vendorId);
+          
+          // Try to find vendor by createdBy
+          if (offer.createdBy && offer.createdBy.trim() !== '') {
+            try {
+              const vendor = await Vendor.findById(offer.createdBy);
+              if (vendor && vendor._id) {
+                offer.vendorId = vendor._id;
+                await offer.save();
+                console.log(`✅ Fixed offer "${offer.title}" - assigned vendorId: ${vendor._id}`);
+                fixedCount++;
+                continue;
+              }
+            } catch (e) {
+              console.log(`⚠️ Could not find vendor for createdBy: ${offer.createdBy}`);
+            }
+          }
+          
+          // If no vendor found or createdBy invalid, delete the orphaned offer
+          await Offer.findByIdAndDelete(offer._id);
+          console.log(`🗑️ Deleted orphaned offer "${offer.title}"`);
+          deletedCount++;
         }
       }
       
-      console.log('Migration complete: All offers now have codes');
-    } else {
-      console.log('All offers have codes - no migration needed');
+      if (fixedCount > 0 || deletedCount > 0) {
+        console.log(`Offer migration complete: Fixed ${fixedCount}, Deleted ${deletedCount}`);
+      } else {
+        console.log('All offers are valid - no migration needed');
+      }
+    } catch (err) {
+      console.error('Error during offer migration:', err.message);
     }
   } catch (error) {
-    console.error('Error during offer code migration:', error);
+    console.error('Error during startup migrations:', error);
   }
 })();
 

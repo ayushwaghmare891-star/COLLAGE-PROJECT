@@ -63,6 +63,8 @@ export const vendorRegister = async (req, res) => {
       businessState,
       businessZipCode,
       businessDescription,
+      approvalStatus: 'approved', // Auto-approve vendors for testing
+      status: 'active', // Set to active for testing
     });
 
     await vendor.save();

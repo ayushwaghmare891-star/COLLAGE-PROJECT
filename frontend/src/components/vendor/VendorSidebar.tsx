@@ -18,6 +18,7 @@ export function VendorSidebar({ isOpen, onClose, isMobile }: VendorSidebarProps)
   const navItems = [
     { to: '/vendor/dashboard', icon: LayoutDashboardIcon, label: 'Dashboard', emoji: '📊' },
     { to: '/vendor/offers', icon: TagIcon, label: 'Manage Offers', emoji: '📦' },
+    { to: '/vendor/coupons', icon: TagIcon, label: 'Coupon Redemptions', emoji: '🎟️' },
     { to: '/vendor/analytics', icon: TrendingUpIcon, label: 'Analytics', emoji: '📈' },
     { to: '/vendor/profile', icon: UserIcon, label: 'Profile', emoji: '👤' },
   ];

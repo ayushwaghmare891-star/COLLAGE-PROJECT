@@ -69,7 +69,7 @@ export function VendorOffers() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this offer?')) {
       try {
-        await deleteOffer(token!, id);
+        await deleteOffer(id);
         deleteVendorDiscount(id);
         toast({
           title: "Offer deleted",
@@ -228,7 +228,7 @@ export function VendorOffers() {
                       <td className="py-4 px-4 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <UsersIcon className="w-4 h-4 text-muted-foreground" strokeWidth={2} />
-                          <span className="text-foreground font-medium">{offer.usageCount}</span>
+                          <span className="text-foreground font-medium">{offer.studentRedemptionCount !== undefined ? offer.studentRedemptionCount : offer.usageCount}</span>
                         </div>
                       </td>
                       <td className="py-4 px-4 text-center">

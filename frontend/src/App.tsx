@@ -11,6 +11,7 @@ import { MyAccountView } from './components/views/MyAccountView';
 import { VendorDashboard } from './components/vendor/VendorDashboard';
 import { VendorOffers } from './components/vendor/VendorOffers';
 import { VendorAnalytics } from './components/vendor/VendorAnalytics';
+import { VendorCouponRedemptions } from './components/vendor/VendorCouponRedemptions';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { LoginForm } from './components/auth/LoginForm';
 import { SignupForm } from './components/auth/SignupForm';
@@ -87,6 +88,11 @@ function App() {
           <Route path="/vendor/offers" element={
             <ProtectedRoute requiredRole="vendor">
               <VendorAppShell><VendorOffers /></VendorAppShell>
+            </ProtectedRoute>
+          } />
+          <Route path="/vendor/coupons" element={
+            <ProtectedRoute requiredRole="vendor">
+              <VendorAppShell><VendorCouponRedemptions /></VendorAppShell>
             </ProtectedRoute>
           } />
           <Route path="/vendor/analytics" element={

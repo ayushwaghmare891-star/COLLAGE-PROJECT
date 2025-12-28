@@ -13,6 +13,8 @@ import {
   getOffersStats,
   toggleOfferStatus,
   deleteOfferByAdmin,
+  approveOffer,
+  getPendingOffers,
 } from '../controllers/adminController.js';
 import { getPendingVerifications } from '../controllers/adminDashboardController.js';
 
@@ -29,8 +31,10 @@ router.get('/vendors', authMiddleware, getVendors);
 router.get('/active-users', authMiddleware, getActiveUsers);
 router.get('/pending-verifications', authMiddleware, getPendingVerifications);
 router.get('/offers', authMiddleware, getAllOffers);
+router.get('/offers/pending', authMiddleware, getPendingOffers);
 router.get('/offers-stats', authMiddleware, getOffersStats);
 router.patch('/offers/:offerId/toggle', authMiddleware, toggleOfferStatus);
+router.patch('/offers/:offerId/approve', authMiddleware, approveOffer);
 router.delete('/offers/:offerId', authMiddleware, deleteOfferByAdmin);
 
 export default router;

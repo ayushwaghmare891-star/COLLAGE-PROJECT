@@ -1,6 +1,8 @@
 import { Vendor } from '../models/Vendor.js';
 import { Offer } from '../models/Offer.js';
 import { Discount } from '../models/Discount.js';
+import { Coupon } from '../models/Coupon.js';
+import { Student } from '../models/Student.js';
 
 // Get vendor dashboard data
 export const getVendorDashboard = async (req, res) => {
@@ -385,5 +387,88 @@ export const updateVendorProfile = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error updating vendor profile', error: error.message });
+  }
+};
+
+// Get coupon analytics for vendor dashboard
+export const getCouponAnalytics = async (req, res) => {
+  try {
+    const vendorId = req.user.id;
+
+    // Get all vendor coupons
+    const coupons = await Coupon.find({ vendorId }).lean();
+
+    // Calculate total redemptions
+    const totalCouponRedemptions = coupons.reduce((sum, coupon) => sum + coupon.usedCount, 0);
+    
+    // Calculate unique students
+    const allStudentIds = new Set();
+    coupons.forEach(coupon => {
+      coupon.usedBy.forEach(usage => {
+        allStudentIds.add(usage.studentId.toString());
+      });
+    });
+    const uniqueStudents = allStudentIds.size;
+
+    // Get total coupons and active coupons
+    const now = new Date();
+    const activeCoupons = coupons.filter(coupon => 
+      coupon.isActive && coupon.expirationDate > now
+    ).length;
+
+    // Calculate average redemptions per coupon
+    const avgRedemptionsPerCoupon = coupons.length > 0 
+      ? (totalCouponRedemptions / coupons.length).toFixed(2)
+      : 0;
+
+    // Get most redeemed coupon
+    let mostRedeemedCoupon = null;
+    if (coupons.length > 0) {
+      mostRedeemedCoupon = coupons.reduce((max, coupon) => 
+        coupon.usedCount > (max?.usedCount || 0) ? coupon : max
+      );
+    }
+
+    res.json({
+      message: 'Coupon analytics fetched successfully',
+      statistics: {
+        totalCoupons: coupons.length,
+        activeCoupons,
+        expiredCoupons: coupons.length - activeCoupons,
+        totalCouponRedemptions,
+        uniqueStudentsRedeemed: uniqueStudents,
+        averageRedemptionsPerCoupon: parseFloat(avgRedemptionsPerCoupon),
+        mostRedeemedCoupon: mostRedeemedCoupon ? {
+          code: mostRedeemedCoupon.code,
+          redemptions: mostRedeemedCoupon.usedCount,
+          discount: mostRedeemedCoupon.discountType === 'percentage' 
+            ? mostRedeemedCoupon.discountPercentage + '%'
+            : '$' + mostRedeemedCoupon.discountValue
+        } : null
+      },
+      coupons: coupons.map(coupon => ({
+        id: coupon._id,
+        code: coupon.code,
+        description: coupon.description,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountType === 'percentage' 
+          ? coupon.discountPercentage + '%'
+          : '$' + coupon.discountValue,
+        redemptions: coupon.usedCount,
+        usageLimit: coupon.usageLimit,
+        percentageUsed: coupon.usageLimit 
+          ? ((coupon.usedCount / coupon.usageLimit) * 100).toFixed(2) + '%'
+          : 'Unlimited',
+        expirationDate: coupon.expirationDate,
+        isActive: coupon.isActive,
+        createdAt: coupon.createdAt
+      }))
+    });
+  } catch (error) {
+    console.error('Error getting coupon analytics:', error);
+    res.status(500).json({ 
+      message: 'Error fetching coupon analytics', 
+      error: error.message 
+    });
   }
 };

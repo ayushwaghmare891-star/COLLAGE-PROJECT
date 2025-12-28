@@ -2,11 +2,25 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
-import { UploadIcon, CheckCircleIcon, ClockIcon, AlertCircleIcon, MailIcon, LockIcon } from 'lucide-react';
+import { UploadIcon, CheckCircleIcon, ClockIcon, AlertCircleIcon, MailIcon, SparklesIcon, GiftIcon, ArrowRightIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useToast } from '../../hooks/use-toast';
 import { verificationAPI } from '../../lib/verificationAPI';
+import { fetchAllActiveOffers } from '../../lib/offerAPI';
+
+interface Offer {
+  _id: string;
+  title: string;
+  description: string;
+  offerType: string;
+  offerValue: number;
+  category: string;
+  startDate: string;
+  endDate: string;
+  image?: string;
+  code?: string;
+}
 
 export function VerificationView() {
   const { verificationStatus, setVerificationStatus } = useAppStore();
@@ -20,19 +34,26 @@ export function VerificationView() {
   const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
-  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const [offers, setOffers] = useState<Offer[]>([]);
+  const [offersLoading, setOffersLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     window.scrollTo(0, 0);
     // Check current verification status when component loads
     checkVerificationStatus();
+
+    // Set up polling to check for approval updates every 10 seconds if pending
+    const pollInterval = setInterval(() => {
+      checkVerificationStatus();
+    }, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   // Check verification status from backend
   const checkVerificationStatus = async () => {
     try {
-      setIsCheckingStatus(true);
       const response = await verificationAPI.getVerificationStatus();
       if (response.success) {
         const status = response.verificationStatus;
@@ -47,18 +68,32 @@ export function VerificationView() {
     } catch (error) {
       console.error('Failed to check verification status:', error);
       // Continue anyway, use local state
-    } finally {
-      setIsCheckingStatus(false);
     }
   };
 
   useEffect(() => {
     if (verificationStatus === 'verified') {
       setCurrentStep(3);
+      // Fetch offers when verified
+      fetchOffers();
     } else if (verificationStatus === 'pending') {
       setCurrentStep(2);
     }
   }, [verificationStatus]);
+
+  const fetchOffers = async () => {
+    try {
+      setOffersLoading(true);
+      const response = await fetchAllActiveOffers();
+      if (response.offers) {
+        setOffers(response.offers.slice(0, 6)); // Show first 6 offers
+      }
+    } catch (error) {
+      console.error('Failed to fetch offers:', error);
+    } finally {
+      setOffersLoading(false);
+    }
+  };
 
   // Resend countdown timer
   useEffect(() => {
@@ -523,7 +558,8 @@ export function VerificationView() {
       )}
 
       {currentStep === 3 && (
-        <Card className="bg-card text-card-foreground border-border">
+        <>
+          <Card className="bg-card text-card-foreground border-border">
           <CardHeader>
             <CardTitle className="text-h3 text-card-foreground">Verification Complete</CardTitle>
             <CardDescription className="text-muted-foreground">
@@ -560,6 +596,94 @@ export function VerificationView() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="bg-gradient-to-br from-success/5 to-card border-success/20">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <GiftIcon className="w-6 h-6 text-success" />
+              <div>
+                <CardTitle className="text-h3 text-card-foreground">🎉 Exclusive Offers Available</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  Check out amazing deals from our partner vendors
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {offersLoading ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">Loading offers...</p>
+              </div>
+            ) : offers.length > 0 ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {offers.map((offer) => (
+                    <div
+                      key={offer._id}
+                      className="border border-border rounded-lg p-4 hover:shadow-md hover:border-primary/50 transition-all bg-background"
+                    >
+                      {offer.image && (
+                        <img
+                          src={offer.image}
+                          alt={offer.title}
+                          className="w-full h-32 object-cover rounded-lg mb-3"
+                        />
+                      )}
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-foreground line-clamp-2">{offer.title}</h4>
+                        <p className="text-small text-muted-foreground line-clamp-2">{offer.description}</p>
+                        
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="flex items-center gap-2">
+                            <SparklesIcon className="w-4 h-4 text-warning" />
+                            <span className="font-bold text-lg text-success">
+                              {offer.offerValue}
+                              {offer.offerType === 'percentage' ? '%' : '₹'}
+                            </span>
+                          </div>
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded">
+                            {offer.category}
+                          </span>
+                        </div>
+
+                        {offer.code && (
+                          <div className="bg-primary/10 rounded p-2 mt-3">
+                            <p className="text-xs text-muted-foreground mb-1">Code:</p>
+                            <p className="font-mono font-bold text-primary">{offer.code}</p>
+                          </div>
+                        )}
+
+                        <Button
+                          size="sm"
+                          onClick={() => (window.location.href = '/discounts')}
+                          className="w-full mt-3 bg-primary text-primary-foreground hover:bg-secondary hover:text-secondary-foreground"
+                        >
+                          View Offer <ArrowRightIcon className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-center mt-6">
+                  <Button
+                    onClick={() => (window.location.href = '/discounts')}
+                    variant="outline"
+                    className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20"
+                  >
+                    View All Offers ({offers.length}+)
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <GiftIcon className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+                <p className="text-muted-foreground">No offers available right now</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        </>
       )}
     </div>
   );

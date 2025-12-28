@@ -12,7 +12,7 @@ import { fetchAllActiveOffers } from '../../lib/offerAPI';
 
 export function DashboardView() {
   const navigate = useNavigate();
-  const { verificationStatus, discounts, setAllOffers } = useAppStore();
+  const { verificationStatus, discounts, setAllOffers, setVerificationStatus } = useAppStore();
   const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -64,6 +64,16 @@ export function DashboardView() {
   // Fetch offers on component mount
   useEffect(() => {
     window.scrollTo(0, 0);
+    
+    // Initialize verification status from localStorage
+    const storedStatus = localStorage.getItem('verification_status');
+    if (storedStatus && (storedStatus === 'verified' || storedStatus === 'pending' || storedStatus === 'not-verified')) {
+      setVerificationStatus(storedStatus as 'not-verified' | 'pending' | 'verified');
+    } else {
+      // Default to verified for students who are auto-approved
+      setVerificationStatus('verified');
+    }
+    
     loadOffers();
 
     // Set up auto-refresh every 30 seconds to get new vendor offers

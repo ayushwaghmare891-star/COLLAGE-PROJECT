@@ -12,6 +12,8 @@ import {
   uploadVendorDocument,
   getPendingDocuments,
   verifyDocument,
+  approveVerification,
+  rejectVerification,
 } from '../controllers/verificationController.js';
 
 const router = express.Router();
@@ -63,5 +65,7 @@ router.post('/upload-vendor-document', authMiddleware, upload.single('document')
 // Admin verification routes
 router.get('/pending-documents', authMiddleware, getPendingDocuments);
 router.post('/verify-document/:documentId', authMiddleware, verifyDocument);
+router.put('/:id/approve', authMiddleware, approveVerification);
+router.put('/:id/reject', authMiddleware, rejectVerification);
 
 export default router;

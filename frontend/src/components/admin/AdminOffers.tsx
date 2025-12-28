@@ -21,7 +21,7 @@ interface OfferData {
   category: string;
   vendorId: {
     _id: string;
-    username: string;
+    businessName: string;
   };
   createdBy: string;
   startDate: string;
@@ -104,11 +104,11 @@ export function AdminOffers() {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(o => 
-        o.title.toLowerCase().includes(term) ||
-        o.description.toLowerCase().includes(term) ||
-        o.code.toLowerCase().includes(term) ||
-        o.category.toLowerCase().includes(term) ||
-        o.vendorId?.username.toLowerCase().includes(term)
+        (o.title && o.title.toLowerCase().includes(term)) ||
+        (o.description && o.description.toLowerCase().includes(term)) ||
+        (o.code && o.code.toLowerCase().includes(term)) ||
+        (o.category && o.category.toLowerCase().includes(term)) ||
+        (o.vendorId && o.vendorId.businessName && o.vendorId.businessName.toLowerCase().includes(term))
       );
     }
 
@@ -315,7 +315,7 @@ export function AdminOffers() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <div>
                       <p className="text-xs text-muted-foreground mb-1">Discount</p>
                       <p className="text-lg font-bold text-primary">
@@ -331,8 +331,12 @@ export function AdminOffers() {
                       <Badge variant="outline">{offer.category}</Badge>
                     </div>
                     <div>
+                      <p className="text-xs text-muted-foreground mb-1">Students Redeemed</p>
+                      <p className="text-lg font-bold text-green-600 dark:text-green-400">{offer.studentRedemptionCount || 0}</p>
+                    </div>
+                    <div>
                       <p className="text-xs text-muted-foreground mb-1">Vendor</p>
-                      <p className="text-sm text-foreground">{offer.vendorId?.username || 'Unknown'}</p>
+                      <p className="text-sm text-foreground">{offer.vendorId?.businessName || 'Unknown'}</p>
                     </div>
                   </div>
 

@@ -15,25 +15,32 @@ export const getStudentDashboard = async (req, res) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // Get active offers for student
-    const now = new Date();
-    const activeOffers = await Offer.find({
-      vendor: { $ne: null },
-      startDate: { $lte: now },
-      endDate: { $gte: now },
-      status: 'active'
-    })
-      .select('title description offerType offerValue category productName minPurchaseAmount code image usageLimit usedCount')
-      .lean()
-      .limit(10);
+    let activeOffers = [];
+    let totalSavings = 0;
+    let recentDiscountsCount = 0;
 
-    // Get total savings estimate
-    const recentDiscounts = await Discount.find({
-      student: studentId,
-      appliedDate: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
-    }).lean();
+    // Only show offers if student is verified
+    if (student.approvalStatus === 'approved') {
+      const now = new Date();
+      activeOffers = await Offer.find({
+        vendor: { $ne: null },
+        startDate: { $lte: now },
+        endDate: { $gte: now },
+        status: 'active'
+      })
+        .select('title description offerType offerValue category productName minPurchaseAmount code image usageLimit usedCount')
+        .lean()
+        .limit(10);
 
-    const totalSavings = recentDiscounts.reduce((sum, d) => sum + (d.savingsAmount || 0), 0);
+      // Get total savings estimate
+      const recentDiscounts = await Discount.find({
+        student: studentId,
+        appliedDate: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // Last 30 days
+      }).lean();
+
+      totalSavings = recentDiscounts.reduce((sum, d) => sum + (d.savingsAmount || 0), 0);
+      recentDiscountsCount = recentDiscounts.length;
+    }
 
     res.json({
       message: 'Student dashboard data fetched successfully',
@@ -45,15 +52,16 @@ export const getStudentDashboard = async (req, res) => {
         email: student.email,
         profileImage: student.profileImage,
         college: student.college,
-        verificationStatus: student.verificationStatus,
+        approvalStatus: student.approvalStatus,
         isEmailVerified: student.isEmailVerified,
         status: student.status
       },
       statistics: {
         totalActiveDealsBrowsed: activeOffers.length,
         totalSavingsLastMonth: totalSavings,
-        recentDiscountsCount: recentDiscounts.length,
-        verificationStatus: student.verificationStatus
+        recentDiscountsCount: recentDiscountsCount,
+        verificationStatus: student.approvalStatus,
+        canAccessOffers: student.approvalStatus === 'approved'
       },
       activeOffers: activeOffers.map(offer => ({
         id: offer._id,
@@ -111,10 +119,27 @@ export const getStudentDiscounts = async (req, res) => {
 // Get available offers by category
 export const getOffersByCategory = async (req, res) => {
   try {
+    const studentId = req.user?.id;
     const { category } = req.params;
     const { page = 1, limit = 10 } = req.query;
 
     const skip = (page - 1) * limit;
+
+    // Check if student is verified
+    const student = await Student.findById(studentId)
+      .select('approvalStatus documentVerified');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (student.approvalStatus !== 'approved') {
+      return res.status(403).json({ 
+        message: 'You must be verified to access offers',
+        verificationStatus: student.approvalStatus,
+        documentVerified: student.documentVerified
+      });
+    }
 
     const now = new Date();
     const offers = await Offer.find({
@@ -157,6 +182,22 @@ export const redeemOffer = async (req, res) => {
 
     if (!offerId) {
       return res.status(400).json({ message: 'Offer ID is required' });
+    }
+
+    // Check if student is verified
+    const student = await Student.findById(studentId)
+      .select('approvalStatus documentVerified');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (student.approvalStatus !== 'approved') {
+      return res.status(403).json({ 
+        message: 'You must be verified to redeem offers',
+        verificationStatus: student.approvalStatus,
+        documentVerified: student.documentVerified
+      });
     }
 
     const offer = await Offer.findById(offerId);
@@ -222,73 +263,7 @@ export const redeemOffer = async (req, res) => {
   }
 };
 
-// Save/bookmark an offer
-export const saveOffer = async (req, res) => {
-  try {
-    const studentId = req.user.id;
-    const { offerId } = req.body;
 
-    if (!offerId) {
-      return res.status(400).json({ message: 'Offer ID is required' });
-    }
-
-    const student = await Student.findById(studentId);
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    // Check if already saved
-    if (student.savedOffers?.includes(offerId)) {
-      return res.status(400).json({ message: 'Offer is already saved' });
-    }
-
-    student.savedOffers = student.savedOffers || [];
-    student.savedOffers.push(offerId);
-    await student.save();
-
-    res.json({ message: 'Offer saved successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Error saving offer', error: error.message });
-  }
-};
-
-// Get saved offers
-export const getSavedOffers = async (req, res) => {
-  try {
-    const studentId = req.user.id;
-    const { page = 1, limit = 10 } = req.query;
-
-    const skip = (page - 1) * limit;
-
-    const student = await Student.findById(studentId)
-      .populate({
-        path: 'savedOffers',
-        select: 'title description offerType offerValue category productName image code',
-        skip,
-        limit: parseInt(limit)
-      })
-      .lean();
-
-    if (!student) {
-      return res.status(404).json({ message: 'Student not found' });
-    }
-
-    const total = student.savedOffers?.length || 0;
-
-    res.json({
-      message: 'Saved offers fetched successfully',
-      offers: student.savedOffers || [],
-      pagination: {
-        total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Error fetching saved offers', error: error.message });
-  }
-};
 
 // Get student verification status
 export const getVerificationStatus = async (req, res) => {
@@ -296,7 +271,7 @@ export const getVerificationStatus = async (req, res) => {
     const studentId = req.user.id;
 
     const student = await Student.findById(studentId)
-      .select('verificationStatus isEmailVerified studentIdDocument college enrollmentYear')
+      .select('approvalStatus documentVerified isEmailVerified studentIdDocument studentIdFileName studentIdUploadedAt college enrollmentYear rejectionReason')
       .lean();
 
     if (!student) {
@@ -305,11 +280,16 @@ export const getVerificationStatus = async (req, res) => {
 
     res.json({
       message: 'Verification status fetched successfully',
-      verificationStatus: student.verificationStatus,
+      approvalStatus: student.approvalStatus,
+      documentVerified: student.documentVerified,
       isEmailVerified: student.isEmailVerified,
       studentIdUploaded: !!student.studentIdDocument,
+      studentIdFileName: student.studentIdFileName,
+      studentIdUploadedAt: student.studentIdUploadedAt,
       college: student.college,
-      enrollmentYear: student.enrollmentYear
+      enrollmentYear: student.enrollmentYear,
+      rejectionReason: student.rejectionReason || '',
+      canAccessOffers: student.approvalStatus === 'approved'
     });
   } catch (error) {
     res.status(500).json({ message: 'Error fetching verification status', error: error.message });
@@ -319,10 +299,27 @@ export const getVerificationStatus = async (req, res) => {
 // Search offers
 export const searchOffers = async (req, res) => {
   try {
+    const studentId = req.user?.id;
     const { query, category, sortBy = '-createdAt' } = req.query;
     const { page = 1, limit = 10 } = req.query;
 
     const skip = (page - 1) * limit;
+
+    // Check if student is verified
+    const student = await Student.findById(studentId)
+      .select('approvalStatus documentVerified');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    if (student.approvalStatus !== 'approved') {
+      return res.status(403).json({ 
+        message: 'You must be verified to access offers',
+        verificationStatus: student.approvalStatus,
+        documentVerified: student.documentVerified
+      });
+    }
 
     let searchFilter = {
       status: 'active',
@@ -362,5 +359,127 @@ export const searchOffers = async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Error searching offers', error: error.message });
+  }
+};
+
+// Save offer to student's saved list
+export const saveOffer = async (req, res) => {
+  try {
+    const studentId = req.user?.id;
+    const { offerId } = req.body;
+
+    if (!studentId) {
+      return res.status(401).json({ message: 'Unauthorized: Student not authenticated' });
+    }
+
+    if (!offerId) {
+      return res.status(400).json({ message: 'Missing offerId' });
+    }
+
+    // Check if offer exists
+    const offer = await Offer.findById(offerId);
+    if (!offer) {
+      return res.status(404).json({ message: 'Offer not found' });
+    }
+
+    // Find student
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Check if already saved
+    const alreadySaved = student.savedOffers.some(
+      (saved) => saved.offerId && saved.offerId.toString() === offerId
+    );
+
+    if (alreadySaved) {
+      return res.status(400).json({ message: 'This offer is already saved' });
+    }
+
+    // Add to saved offers
+    student.savedOffers.push({
+      offerId: offer._id,
+      savedAt: new Date(),
+    });
+
+    await student.save();
+
+    res.json({
+      message: 'Offer saved successfully',
+      savedOffer: {
+        offerId: offer._id,
+        title: offer.title,
+        savedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    console.error('Error saving offer:', error);
+    res.status(500).json({ message: 'Failed to save offer', error: error.message });
+  }
+};
+
+// Unsave offer from student's saved list
+export const unsaveOffer = async (req, res) => {
+  try {
+    const studentId = req.user?.id;
+    const { offerId } = req.body;
+
+    if (!studentId) {
+      return res.status(401).json({ message: 'Unauthorized: Student not authenticated' });
+    }
+
+    if (!offerId) {
+      return res.status(400).json({ message: 'Missing offerId' });
+    }
+
+    // Find student
+    const student = await Student.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Remove from saved offers
+    student.savedOffers = student.savedOffers.filter(
+      (saved) => saved.offerId && saved.offerId.toString() !== offerId
+    );
+
+    await student.save();
+
+    res.json({
+      message: 'Offer removed from saved',
+      offerId,
+    });
+  } catch (error) {
+    console.error('Error removing saved offer:', error);
+    res.status(500).json({ message: 'Failed to remove saved offer', error: error.message });
+  }
+};
+
+// Get student's saved offers
+export const getSavedOffers = async (req, res) => {
+  try {
+    const studentId = req.user?.id;
+
+    if (!studentId) {
+      return res.status(401).json({ message: 'Unauthorized: Student not authenticated' });
+    }
+
+    const student = await Student.findById(studentId).populate({
+      path: 'savedOffers.offerId',
+      select: 'title description offerType offerValue category productName code image usageLimit usedCount startDate endDate',
+    });
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({
+      message: 'Saved offers fetched successfully',
+      savedOffers: student.savedOffers || [],
+    });
+  } catch (error) {
+    console.error('Error fetching saved offers:', error);
+    res.status(500).json({ message: 'Failed to fetch saved offers', error: error.message });
   }
 };

@@ -1,6 +1,8 @@
 import { Offer } from '../models/Offer.js';
 import { Vendor } from '../models/Vendor.js';
 import { Student } from '../models/Student.js';
+import { User } from '../models/User.js';
+import { Discount } from '../models/Discount.js';
 
 // Create a new offer
 export const createOffer = async (req, res) => {
@@ -97,14 +99,16 @@ export const createOffer = async (req, res) => {
       vendorId: vendor._id, // Use the vendor's MongoDB ObjectId
       createdBy: vendorId,
       isActive: true, // Explicitly set to active
+      approvalStatus: 'approved', // Auto-approve offers on creation for easier testing
+      approvedAt: new Date(),
     });
 
     await offer.save();
 
-    console.log(`Offer created: ${offer._id} with isActive: ${offer.isActive}`);
+    console.log(`Offer created: ${offer._id} with isActive: ${offer.isActive} and approvalStatus: ${offer.approvalStatus}`);
 
     res.status(201).json({
-      message: 'Offer created successfully. It will be visible after admin approval.',
+      message: 'Offer created successfully and is now visible to students.',
       offer: {
         id: offer._id,
         title: offer.title,
@@ -150,11 +154,25 @@ export const getVendorOffers = async (req, res) => {
       .skip(parseInt(skip))
       .limit(parseInt(limit));
 
+    // Get redemption count for each offer
+    const offersWithRedemptions = await Promise.all(
+      offers.map(async (offer) => {
+        const redemptionCount = await Discount.countDocuments({
+          offer: offer._id,
+          status: 'redeemed'
+        });
+        return {
+          ...offer.toObject(),
+          studentRedemptionCount: redemptionCount || 0
+        };
+      })
+    );
+
     const total = await Offer.countDocuments(filter);
 
     res.json({
       message: 'Offers retrieved successfully',
-      offers,
+      offers: offersWithRedemptions,
       pagination: {
         total,
         skip: parseInt(skip),
@@ -314,9 +332,12 @@ export const getAllActiveOffers = async (req, res) => {
     const now = new Date();
 
     // Build filter for active, non-expired, APPROVED offers
+    // Offers should be active, not expired, and approved by admin
+    // Also include startDate check to only show offers that have started
     const filter = {
       isActive: true,
-      endDate: { $gte: now },
+      startDate: { $lte: now }, // Offer has started
+      endDate: { $gte: now },   // Offer has not expired
       approvalStatus: 'approved' // Only show approved offers to students
     };
 
@@ -332,31 +353,73 @@ export const getAllActiveOffers = async (req, res) => {
       ];
     }
 
-    console.log('Fetching active offers with filter:', JSON.stringify(filter));
-    console.log('Current time:', now);
+    console.log('🔍 Fetching active offers with filter:', JSON.stringify(filter, null, 2));
+    console.log('⏰ Current server time:', now);
 
+    // Get all offers matching the offer filter
     const offers = await Offer.find(filter)
-      .populate('vendorId', 'businessName businessLogo rating email')
+      .populate({
+        path: 'vendorId',
+        select: 'businessName businessLogo rating email approvalStatus status'
+      })
       .sort({ createdAt: -1 })
       .skip(parseInt(skip))
       .limit(parseInt(limit));
 
-    const total = await Offer.countDocuments(filter);
+    console.log(`📋 Found ${offers.length} offers matching offer filter`);
 
-    console.log(`Found ${offers.length} active offers out of ${total} total`);
-    if (offers.length > 0) {
-      console.log('Sample offer:', {
-        id: offers[0]._id,
-        title: offers[0].title,
-        isActive: offers[0].isActive,
-        endDate: offers[0].endDate,
-        vendorId: offers[0].vendorId?._id || offers[0].vendorId,
+    // Filter out offers from vendors that don't meet the vendor criteria
+    const filteredOffers = [];
+    
+    for (const offer of offers) {
+      // Check if vendor exists and meets criteria
+      if (!offer.vendorId) {
+        console.log(`❌ Offer "${offer.title}" has no vendor (vendorId is null)`);
+        continue;
+      }
+      
+      const vendor = offer.vendorId;
+      if (vendor.approvalStatus !== 'approved' || vendor.status !== 'active') {
+        console.log(`❌ Vendor filtered out for offer "${offer.title}": approvalStatus="${vendor.approvalStatus}", status="${vendor.status}"`);
+        continue;
+      }
+      
+      filteredOffers.push(offer);
+    }
+
+    const total = filteredOffers.length;
+
+    console.log(`✅ Found ${filteredOffers.length} active offers from approved vendors`);
+    if (filteredOffers.length > 0) {
+      console.log('📦 Sample offer:', {
+        id: filteredOffers[0]._id,
+        title: filteredOffers[0].title,
+        isActive: filteredOffers[0].isActive,
+        startDate: filteredOffers[0].startDate,
+        endDate: filteredOffers[0].endDate,
+        approvalStatus: filteredOffers[0].approvalStatus,
+        vendorId: filteredOffers[0].vendorId?._id || filteredOffers[0].vendorId,
+      });
+    } else {
+      console.warn('⚠️ No offers found! Checking database stats...');
+      const totalOffers = await Offer.countDocuments({});
+      const approvedOffers = await Offer.countDocuments({ approvalStatus: 'approved' });
+      const activeOffers = await Offer.countDocuments({ isActive: true });
+      const nonExpiredOffers = await Offer.countDocuments({ endDate: { $gte: now } });
+      const startedOffers = await Offer.countDocuments({ startDate: { $lte: now } });
+      
+      console.log('📊 Database stats:', {
+        totalOffers,
+        approvedOffers,
+        activeOffers,
+        nonExpiredOffers,
+        startedOffers,
       });
     }
 
     res.json({
       message: 'Active offers retrieved successfully',
-      offers,
+      offers: filteredOffers,
       pagination: {
         total,
         skip: parseInt(skip),
@@ -376,9 +439,16 @@ export const getOfferByCode = async (req, res) => {
     const { code } = req.params;
     const studentId = req.user?.id; // Get student ID from auth middleware
 
-    const offer = await Offer.findOne({ code: code.toUpperCase(), isActive: true });
+    const offer = await Offer.findOne({ code: code.toUpperCase(), isActive: true })
+      .populate('vendorId', 'approvalStatus status');
+    
     if (!offer) {
       return res.status(404).json({ message: 'Offer not found or expired' });
+    }
+
+    // Check if vendor is approved and active
+    if (!offer.vendorId || offer.vendorId.approvalStatus !== 'approved' || offer.vendorId.status !== 'active') {
+      return res.status(404).json({ message: 'Offer from vendor is not available' });
     }
 
     // Check if offer is still valid date-wise
@@ -569,11 +639,11 @@ export const redeemOffer = async (req, res) => {
     }
 
     // Find student in Student collection
-    let student = await Student.findById(userId);
+    let student = await Student.findById(studentId);
     
     // If not found in Student collection, try User
     if (!student) {
-      const user = await User.findById(userId);
+      const user = await User.findById(studentId);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }

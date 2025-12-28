@@ -66,6 +66,11 @@ export const useAuthStore = create<AuthState>()(
             // Store token in localStorage
             localStorage.setItem('auth_token', data.token);
             localStorage.setItem('user', JSON.stringify(user));
+            
+            // Store verification status if available
+            if (data.user.verificationStatus) {
+              localStorage.setItem('verification_status', data.user.verificationStatus);
+            }
 
             return true;
           }
@@ -156,6 +161,14 @@ export const useAuthStore = create<AuthState>()(
             // Store token in localStorage
             localStorage.setItem('auth_token', data.token);
             localStorage.setItem('user', JSON.stringify(user));
+            
+            // Store verification status if available (especially for students)
+            if (data.verificationStatus) {
+              localStorage.setItem('verification_status', data.verificationStatus);
+            } else if (role === 'student') {
+              // Students are auto-approved
+              localStorage.setItem('verification_status', 'verified');
+            }
 
             return true;
           }

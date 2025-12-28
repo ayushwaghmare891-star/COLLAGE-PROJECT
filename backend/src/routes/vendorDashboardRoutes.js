@@ -9,7 +9,8 @@ import {
   getOfferAnalytics,
   getVendorAnalytics,
   getVendorProfile,
-  updateVendorProfile
+  updateVendorProfile,
+  getCouponAnalytics
 } from '../controllers/vendorDashboardController.js';
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.use(authMiddleware);
 // Dashboard routes
 router.get('/dashboard', getVendorDashboard);
 router.get('/analytics', getVendorAnalytics);
+router.get('/coupons/analytics', getCouponAnalytics);
 router.get('/profile', getVendorProfile);
 router.put('/profile', updateVendorProfile);
 

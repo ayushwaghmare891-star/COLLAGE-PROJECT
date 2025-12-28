@@ -2,6 +2,7 @@ import { Student } from '../models/Student.js';
 import { Vendor } from '../models/Vendor.js';
 import { Offer } from '../models/Offer.js';
 import { Discount } from '../models/Discount.js';
+import { VerificationDocument } from '../models/VerificationDocument.js';
 
 // Admin Dashboard
 export const getAdminDashboard = async (req, res) => {
@@ -259,7 +260,7 @@ export const getPendingVerifications = async (req, res) => {
     const skip = (page - 1) * limit;
 
     if (type === 'student' || type === 'all') {
-      // Get students with pending approval
+      // Get students with pending approval and their verification documents
       const pendingStudents = await Student.find({ 
         approvalStatus: 'pending'
       })
@@ -267,17 +268,26 @@ export const getPendingVerifications = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
       
-      pendingData.push(...pendingStudents.map(s => ({ 
-        ...s, 
-        type: 'student',
-        verificationStatus: 'pending-approval',
-        documentUploaded: s.studentIdUploadedAt ? true : false,
-        documentVerified: s.documentVerified
-      })));
+      for (const student of pendingStudents) {
+        // Fetch verification documents for this student
+        const verificationDoc = await VerificationDocument.findOne({
+          userId: student._id,
+          userType: 'student'
+        }).lean();
+
+        pendingData.push({
+          ...student, 
+          type: 'student',
+          verificationStatus: 'pending-approval',
+          documentUploaded: student.studentIdUploadedAt ? true : false,
+          documentVerified: student.documentVerified,
+          verificationDocument: verificationDoc || null
+        });
+      }
     }
 
     if (type === 'vendor' || type === 'all') {
-      // Get vendors with pending approval
+      // Get vendors with pending approval and their verification documents
       const pendingVendors = await Vendor.find({ 
         approvalStatus: 'pending'
       })
@@ -285,13 +295,22 @@ export const getPendingVerifications = async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
       
-      pendingData.push(...pendingVendors.map(v => ({ 
-        ...v, 
-        type: 'vendor',
-        verificationStatus: 'pending-approval',
-        documentUploaded: v.businessDocumentUploadedAt ? true : false,
-        documentVerified: v.documentVerified
-      })));
+      for (const vendor of pendingVendors) {
+        // Fetch verification documents for this vendor
+        const verificationDoc = await VerificationDocument.findOne({
+          userId: vendor._id,
+          userType: 'vendor'
+        }).lean();
+
+        pendingData.push({
+          ...vendor, 
+          type: 'vendor',
+          verificationStatus: 'pending-approval',
+          documentUploaded: vendor.businessDocumentUploadedAt ? true : false,
+          documentVerified: vendor.documentVerified,
+          verificationDocument: verificationDoc || null
+        });
+      }
     }
 
     // Apply pagination for mixed results

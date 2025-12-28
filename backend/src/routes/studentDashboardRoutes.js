@@ -6,6 +6,7 @@ import {
   getOffersByCategory,
   redeemOffer,
   saveOffer,
+  unsaveOffer,
   getSavedOffers,
   getVerificationStatus,
   searchOffers
@@ -26,6 +27,7 @@ router.get('/offers/category/:category', getOffersByCategory);
 router.get('/offers/search', searchOffers);
 router.post('/offers/redeem', redeemOffer);
 router.post('/offers/save', saveOffer);
+router.post('/offers/unsave', unsaveOffer);
 router.get('/offers/saved', getSavedOffers);
 
 export default router;

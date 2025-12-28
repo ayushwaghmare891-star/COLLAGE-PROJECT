@@ -11,7 +11,7 @@ import { fetchAllActiveOffers } from '../../lib/offerAPI';
 import type { VendorDiscount } from '../../types';
 
 export function DiscountsView() {
-  const { verificationStatus, allOffers, setAllOffers } = useAppStore();
+  const { verificationStatus, allOffers, setAllOffers, setVerificationStatus } = useAppStore();
   const [selectedDiscount, setSelectedDiscount] = useState<VendorDiscount | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('popularity');
@@ -29,31 +29,51 @@ export function DiscountsView() {
       if (showLoading) setLoading(true);
       else setIsRefreshing(true);
       
-      const data = await fetchAllActiveOffers(category || categoryFilter);
-      console.log('Fetched offers data:', data);
-      const offers = data.offers?.map((offer: any) => ({
-        id: offer._id,
-        vendorId: offer.vendorId?._id || offer.vendorId || 'vendor1',
-        brand: offer.title,
-        discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `$${offer.offerValue} off`,
-        description: offer.description,
-        category: offer.category,
-        expiryDays: Math.ceil((new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-        isExpired: new Date(offer.endDate) < new Date(),
-        isUsed: false,
-        termsAndConditions: offer.terms || '',
-        createdAt: offer.createdAt,
-        usageCount: 0,
-        totalViews: 0,
-        isActive: offer.isActive,
-      })) || [];
-      console.log('Mapped offers:', offers);
+      const fetchCategory = category || (categoryFilter !== 'all' ? categoryFilter : undefined);
+      console.log('🔄 DiscountsView: Loading offers with category filter:', fetchCategory || 'all');
+      console.log('🔄 DiscountsView: Current allOffers in store:', allOffers.length);
+      
+      const data = await fetchAllActiveOffers(fetchCategory);
+      console.log('✅ DiscountsView: Fetched offers data:', data);
+      console.log('✅ DiscountsView: Number of offers received:', data.offers?.length || 0);
+      
+      if (!data.offers || data.offers.length === 0) {
+        console.warn('⚠️ DiscountsView: No offers in API response!');
+        console.log('⚠️ Response data:', JSON.stringify(data, null, 2));
+      }
+      
+      const offers = data.offers?.map((offer: any) => {
+        console.log('📦 Mapping offer:', offer.title, 'isActive:', offer.isActive, 'approvalStatus:', offer.approvalStatus);
+        return {
+          id: offer._id,
+          vendorId: offer.vendorId?._id || offer.vendorId || 'vendor1',
+          brand: offer.title,
+          discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `$${offer.offerValue} off`,
+          description: offer.description,
+          category: offer.category,
+          expiryDays: Math.ceil((new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
+          isExpired: new Date(offer.endDate) < new Date(),
+          isUsed: false,
+          termsAndConditions: offer.terms || '',
+          createdAt: offer.createdAt,
+          usageCount: 0,
+          totalViews: 0,
+          isActive: offer.isActive,
+        };
+      }) || [];
+      console.log('✅ DiscountsView: Mapped offers count:', offers.length);
+      console.log('✅ DiscountsView: Setting allOffers to:', offers.length, 'offers');
       setAllOffers(offers);
     } catch (error) {
-      console.error('Failed to load offers:', error);
+      console.error('❌ DiscountsView: Failed to load offers:', error);
+      console.error('❌ Error details:', error instanceof Error ? error.stack : error);
+      // Keep showing existing offers if API fails
+      if (allOffers.length > 0) {
+        console.log('📚 Keeping', allOffers.length, 'cached offers');
+      }
       toast({
         title: "Error",
-        description: "Failed to load offers",
+        description: error instanceof Error ? error.message : "Failed to load offers",
         variant: "destructive",
       });
     } finally {
@@ -65,6 +85,20 @@ export function DiscountsView() {
   useEffect(() => {
     window.scrollTo(0, 0);
     
+    // Initialize verification status from localStorage
+    const storedStatus = localStorage.getItem('verification_status');
+    if (storedStatus && (storedStatus === 'verified' || storedStatus === 'pending' || storedStatus === 'not-verified')) {
+      setVerificationStatus(storedStatus as 'not-verified' | 'pending' | 'verified');
+    } else {
+      // Default to verified for students
+      setVerificationStatus('verified');
+    }
+    
+    // Only show loading if we don't have cached offers
+    if (allOffers.length === 0) {
+      setLoading(true);
+    }
+    
     loadOffers();
 
     // Set up auto-refresh every 30 seconds
@@ -73,7 +107,7 @@ export function DiscountsView() {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [setAllOffers, toast]);
+  }, []);
 
   const filteredDiscounts = allOffers.filter(d => {
     if (categoryFilter === 'all') return true;
@@ -119,19 +153,29 @@ export function DiscountsView() {
             <CardDescription className="text-muted-foreground">
               {verificationStatus !== 'verified' 
                 ? 'Verify your student status to unlock exclusive offers' 
-                : 'Check back soon for new offers'}
+                : allOffers.length === 0 
+                ? 'Try refreshing the page or check back soon for new offers'
+                : 'Try adjusting your filters'}
             </CardDescription>
           </CardHeader>
-          {verificationStatus !== 'verified' && (
-            <CardContent>
+          <CardContent className="space-y-3">
+            {verificationStatus !== 'verified' && (
               <Button 
                 onClick={() => window.location.href = '/verification'}
                 className="w-full bg-primary text-primary-foreground hover:bg-secondary hover:text-secondary-foreground"
               >
                 Verify Student Status
               </Button>
-            </CardContent>
-          )}
+            )}
+            <Button 
+              onClick={() => loadOffers(true)}
+              variant="outline"
+              className="w-full"
+            >
+              <RefreshCwIcon className="w-4 h-4 mr-2" />
+              Refresh Offers
+            </Button>
+          </CardContent>
         </Card>
       </div>
     );

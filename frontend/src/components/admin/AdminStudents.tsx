@@ -9,7 +9,8 @@ import {
   MailIcon,
   CalendarIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  Loader2Icon
 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
 
@@ -21,6 +22,7 @@ interface Student {
   lastName: string;
   isEmailVerified: boolean;
   status: string;
+  approvalStatus: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   studentIdDocument?: string;
   studentIdUploadedAt?: string;
@@ -31,6 +33,7 @@ export function AdminStudents() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [verifiedFilter, setVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>('all');
+  const [processingId, setProcessingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -75,6 +78,44 @@ export function AdminStudents() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleApproveStudent = async (id: string, name: string) => {
+    if (!window.confirm(`Approve ${name}? They will be able to access offers.`)) return;
+
+    try {
+      setProcessingId(id);
+      const token = localStorage.getItem('auth_token');
+
+      const response = await fetch(`http://localhost:5000/api/admin/dashboard/students/${id}/verify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ approvalStatus: 'approved' })
+      });
+
+      if (!response.ok) throw new Error('Failed to approve student');
+
+      // Update local state
+      setStudents(students.map(s => 
+        s._id === id ? { ...s, approvalStatus: 'approved' } : s
+      ));
+
+      toast({
+        title: '✅ Student approved',
+        description: `${name} can now access offers`,
+      });
+    } catch (error: any) {
+      toast({
+        title: '❌ Error approving student',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -239,6 +280,7 @@ export function AdminStudents() {
                   <tr className="border-b border-gray-200 dark:border-gray-700">
                     <th className="text-left py-3 px-4 font-semibold">Name</th>
                     <th className="text-left py-3 px-4 font-semibold">Email</th>
+                    <th className="text-left py-3 px-4 font-semibold">Approval</th>
                     <th className="text-left py-3 px-4 font-semibold">Verification</th>
                     <th className="text-left py-3 px-4 font-semibold">Student ID</th>
                     <th className="text-left py-3 px-4 font-semibold">Joined</th>
@@ -263,6 +305,15 @@ export function AdminStudents() {
                         </div>
                       </td>
                       <td className="py-4 px-4">
+                        {student.approvalStatus === 'approved' ? (
+                          <Badge className="bg-green-600 text-white">✅ Approved</Badge>
+                        ) : student.approvalStatus === 'rejected' ? (
+                          <Badge className="bg-red-600 text-white">❌ Rejected</Badge>
+                        ) : (
+                          <Badge className="bg-yellow-600 text-white">⏳ Pending</Badge>
+                        )}
+                      </td>
+                      <td className="py-4 px-4">
                         {student.isEmailVerified ? (
                           <Badge className="bg-green-600 text-white">✅ Verified</Badge>
                         ) : (
@@ -283,15 +334,32 @@ export function AdminStudents() {
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteStudent(student._id, `${student.firstName} ${student.lastName}`)}
-                          className="flex items-center gap-2"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                          Delete
-                        </Button>
+                        <div className="flex gap-2">
+                          {student.approvalStatus !== 'approved' && (
+                            <Button
+                              size="sm"
+                              onClick={() => handleApproveStudent(student._id, `${student.firstName} ${student.lastName}`)}
+                              disabled={processingId === student._id}
+                              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              {processingId === student._id ? (
+                                <Loader2Icon className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircleIcon className="w-4 h-4" />
+                              )}
+                              {processingId === student._id ? 'Approving...' : 'Approve'}
+                            </Button>
+                          )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteStudent(student._id, `${student.firstName} ${student.lastName}`)}
+                            className="flex items-center gap-2"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            Delete
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}

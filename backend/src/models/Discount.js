@@ -55,6 +55,30 @@ const discountSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Student',
+    },
+    offer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Offer',
+    },
+    redemptionType: {
+      type: String,
+      enum: ['online', 'in-store'],
+      default: 'online',
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'redeemed', 'expired'],
+      default: 'pending',
+    },
+    appliedDate: {
+      type: Date,
+    },
+    savingsAmount: {
+      type: Number,
+    },
   },
   { timestamps: true }
 );
