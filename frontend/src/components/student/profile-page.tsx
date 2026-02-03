@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StudentSidebar } from './dashboard/sidebar';
 import { DashboardHeader } from './dashboard-header';
 import { CheckCircle, Clock, XCircle, Edit2, Save, Camera, Upload } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useAuthStore } from '../../stores/authStore';
 
 interface StudentProfile {
   name: string;
@@ -21,19 +22,103 @@ export function ProfilePage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [uploadingId, setUploadingId] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [studentData, setStudentData] = useState<any>(null);
+  const { user } = useAuthStore();
+
   const [profile, setProfile] = useState<StudentProfile>({
-    name: 'John Doe',
-    email: 'john@example.com',
-    phone: '+1234567890',
-    college: 'XYZ University',
-    course: 'Computer Science',
-    yearOfStudy: '2nd Year',
-    studentId: 'CS2024001',
+    name: user?.name || 'Student',
+    email: user?.email || 'student@example.com',
+    phone: '+91 0000000000',
+    college: 'Tech Institute of India',
+    course: 'B.Tech Computer Science',
+    yearOfStudy: '3rd Year',
+    studentId: 'STU-2024-001234',
     verificationStatus: 'verified',
     profileImage: undefined,
   });
 
   const [formData, setFormData] = useState(profile);
+
+  // Fetch student profile from API
+  useEffect(() => {
+    const fetchStudentProfile = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const response = await fetch('http://localhost:5000/api/student/dashboard', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          setStudentData(data.student || data);
+          
+          // Update profile with real data
+          const studentInfo: StudentProfile = {
+            name: data.student?.name || user?.name || 'Student',
+            email: data.student?.email || user?.email || 'student@example.com',
+            phone: data.student?.phone || '+91 0000000000',
+            college: data.student?.college || 'Tech Institute of India',
+            course: data.student?.course || 'B.Tech Computer Science',
+            yearOfStudy: data.student?.yearOfStudy || '3rd Year',
+            studentId: data.student?.studentId || 'STU-2024-001234',
+            verificationStatus: data.student?.verificationStatus || 'verified',
+            profileImage: data.student?.profileImage,
+          };
+          
+          setProfile(studentInfo);
+          setFormData(studentInfo);
+        } else {
+          // Use user data from auth store as fallback
+          const studentInfo: StudentProfile = {
+            name: user?.name || 'Student',
+            email: user?.email || 'student@example.com',
+            phone: '+91 0000000000',
+            college: 'Tech Institute of India',
+            course: 'B.Tech Computer Science',
+            yearOfStudy: '3rd Year',
+            studentId: 'STU-2024-001234',
+            verificationStatus: 'verified',
+          };
+          setProfile(studentInfo);
+          setFormData(studentInfo);
+        }
+      } catch (err) {
+        console.error('Error fetching student profile:', err);
+        // Use user data from auth store as fallback
+        const studentInfo: StudentProfile = {
+          name: user?.name || 'Student',
+          email: user?.email || 'student@example.com',
+          phone: '+91 0000000000',
+          college: 'Tech Institute of India',
+          course: 'B.Tech Computer Science',
+          yearOfStudy: '3rd Year',
+          studentId: 'STU-2024-001234',
+          verificationStatus: 'verified',
+        };
+        setProfile(studentInfo);
+        setFormData(studentInfo);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStudentProfile();
+  }, [user]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -120,9 +205,16 @@ export function ProfilePage() {
             <p className="text-gray-600">Manage your profile information and verification status</p>
           </div>
 
-          <div className="space-y-6">
-            {/* Profile Picture */}
-            <div className="bg-white rounded-xl shadow-md p-8 flex flex-col items-center gap-6">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading your profile...</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl shadow-md p-8 flex flex-col items-center gap-6">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center border-4 border-purple-200 overflow-hidden">
                   {formData.profileImage ? (
@@ -146,8 +238,8 @@ export function ProfilePage() {
               <p className="text-center font-semibold text-gray-900">{formData.name}</p>
             </div>
 
-            {/* Verification Status */}
-            <div className={`rounded-xl p-6 border-2 ${getVerificationStatusColor()} bg-white`}>
+              {/* Verification Status */}
+              <div className={`rounded-xl p-6 border-2 ${getVerificationStatusColor()} bg-white`}>
               <div className="flex items-center gap-3 mb-2">
                 {getVerificationIcon()}
                 <h3 className="font-bold text-lg">
@@ -324,8 +416,9 @@ export function ProfilePage() {
                   className="hidden"
                 />
               </label>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

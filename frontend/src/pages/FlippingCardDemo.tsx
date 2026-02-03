@@ -33,14 +33,14 @@ const cardsData: CardData[] = [
   {
     id: "vendor",
     front: {
-      imageSrc: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&h=300&fit=crop",
+      imageSrc: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=300&fit=crop",
       imageAlt: "Vendor",
       title: "Vendor",
-      description: "Expand your business and reach customers through our collaborative platform.",
+      description: "Reach thousands of students and grow your business with exclusive offers.",
     },
     back: {
-      description: "Partner with us as a vendor to showcase your products and services, connect with potential customers, and grow your business in a supportive ecosystem.",
-      buttonText: "Register as Vendor",
+      description: "Partner with us to access a growing network of verified students. Create targeted offers, track engagement, and watch your business thrive.",
+      buttonText: "Join as Vendor",
     },
   },
 ];
@@ -55,7 +55,7 @@ export default function FlippingCardDemo() {
       if (cardId === "student") {
         navigate("/student/signup");
       } else if (cardId === "vendor") {
-        navigate("/vendor-register");
+        navigate("/vendor/signup");
       }
     }, 300);
   };

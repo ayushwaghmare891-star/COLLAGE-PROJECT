@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { 
@@ -18,8 +17,16 @@ interface OfferData {
   description: string;
   offerType: 'percentage' | 'fixed';
   offerValue: number;
+  discount: number;
+  discountType: 'percentage' | 'fixed';
   category: string;
-  vendorId: {
+  vendor?: {
+    _id: string;
+    name: string;
+    businessName: string;
+    email: string;
+  };
+  vendorId?: {
     _id: string;
     businessName: string;
   };
@@ -27,6 +34,7 @@ interface OfferData {
   startDate: string;
   endDate: string;
   isActive: boolean;
+  status: 'active' | 'pending' | 'rejected' | 'expired';
   usageCount?: number;
   code: string;
   createdAt: string;
@@ -201,15 +209,88 @@ export function AdminOffers() {
     }
   };
 
-  const getExpiringStatus = (endDate: string) => {
-    const now = new Date();
-    const end = new Date(endDate);
-    const daysLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const handleApproveOffer = async (offerId: string) => {
+    try {
+      setProcessingId(offerId);
+      const token = localStorage.getItem('auth_token');
 
-    if (daysLeft < 0) return { label: 'Expired', color: 'bg-red-500/20 text-red-700' };
-    if (daysLeft <= 3) return { label: `${daysLeft}d left`, color: 'bg-orange-500/20 text-orange-700' };
-    if (daysLeft <= 7) return { label: `${daysLeft}d left`, color: 'bg-yellow-500/20 text-yellow-700' };
-    return { label: `${daysLeft}d left`, color: 'bg-green-500/20 text-green-700' };
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+
+      const response = await fetch(`http://localhost:5000/api/offers/admin/approve/${offerId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to approve offer');
+      }
+
+      setOffers(offers.map(o => 
+        o._id === offerId ? { ...o, status: 'active', isActive: true } : o
+      ));
+
+      toast({
+        title: '✅ Success',
+        description: 'Offer approved and is now visible to students',
+      });
+    } catch (error: any) {
+      console.error('Approve offer error:', error);
+      toast({
+        title: '❌ Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRejectOffer = async (offerId: string) => {
+    try {
+      setProcessingId(offerId);
+      const token = localStorage.getItem('auth_token');
+
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+
+      const response = await fetch(`http://localhost:5000/api/offers/admin/reject/${offerId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to reject offer');
+      }
+
+      setOffers(offers.map(o => 
+        o._id === offerId ? { ...o, status: 'rejected', isActive: false } : o
+      ));
+
+      toast({
+        title: '✅ Success',
+        description: 'Offer rejected and removed from student view',
+      });
+    } catch (error: any) {
+      console.error('Reject offer error:', error);
+      toast({
+        title: '❌ Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   if (loading) {
@@ -225,164 +306,254 @@ export function AdminOffers() {
 
   return (
     <div className="space-y-8 pb-8">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 rounded-2xl px-8 py-12 text-white shadow-2xl border border-purple-800/50">
-        <h1 className="text-4xl md:text-5xl font-bold mb-2">
-          Manage Offers 💸
-        </h1>
-        <p className="text-purple-200 text-lg">
-          Monitor and manage all vendor discount offers on the platform
-        </p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-blue-600 to-blue-700 border-0 shadow-lg">
-          <CardContent className="pt-6">
-            <p className="text-white/80 text-sm font-medium mb-1">Total Offers</p>
-            <p className="text-3xl font-bold text-white mb-2">{offers.length}</p>
-            <p className="text-white/70 text-xs">All offers on platform</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-green-600 to-green-700 border-0 shadow-lg">
-          <CardContent className="pt-6">
-            <p className="text-white/80 text-sm font-medium mb-1">Active Offers</p>
-            <p className="text-3xl font-bold text-white mb-2">{offers.filter(o => o.isActive).length}</p>
-            <p className="text-white/70 text-xs">Currently live</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-orange-600 to-orange-700 border-0 shadow-lg">
-          <CardContent className="pt-6">
-            <p className="text-white/80 text-sm font-medium mb-1">Expiring Soon</p>
-            <p className="text-3xl font-bold text-white mb-2">
-              {offers.filter(o => {
-                const daysLeft = Math.ceil((new Date(o.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                return daysLeft >= 0 && daysLeft <= 7;
-              }).length}
+      {/* Header - Student Inspired */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+        <div className="flex items-start gap-4">
+          <div className="w-14 h-14 bg-gradient-to-br from-orange-600 to-red-600 rounded-lg flex items-center justify-center text-2xl shadow-md">
+            💸
+          </div>
+          <div className="flex-1">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+              Manage Offers
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Monitor and manage all vendor discount offers on the platform
             </p>
-            <p className="text-white/70 text-xs">Within 7 days</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="flex-1 relative">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search by title, vendor, code, or category..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+          </div>
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as any)}
-          className="px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active Only</option>
-          <option value="inactive">Inactive Only</option>
-        </select>
       </div>
 
-      {/* Offers List */}
+      {/* Stats Cards - Clean Layout */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-blue-300 transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-md">
+              <EyeIcon className="w-6 h-6 text-white" strokeWidth={2} />
+            </div>
+            <p className="text-gray-600 text-xs font-medium uppercase tracking-wide">Total Offers</p>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{offers.length}</p>
+          <p className="text-xs text-gray-500 mt-1">All offers on platform</p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-yellow-300 transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow-600 to-orange-600 flex items-center justify-center shadow-md">
+              <AlertCircleIcon className="w-6 h-6 text-white" strokeWidth={2} />
+            </div>
+            <p className="text-gray-600 text-xs font-medium uppercase tracking-wide">Pending</p>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{offers.filter(o => o.status === 'pending').length}</p>
+          <p className="text-xs text-gray-500 mt-1">Awaiting approval</p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-green-300 transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center shadow-md">
+              <span className="text-lg">✓</span>
+            </div>
+            <p className="text-gray-600 text-xs font-medium uppercase tracking-wide">Active</p>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{offers.filter(o => o.status === 'active').length}</p>
+          <p className="text-xs text-gray-500 mt-1">Currently live</p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-orange-300 transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-orange-600 to-red-600 flex items-center justify-center shadow-md">
+              <Clock className="w-6 h-6 text-white" strokeWidth={2} />
+            </div>
+            <p className="text-gray-600 text-xs font-medium uppercase tracking-wide">Expiring Soon</p>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">
+            {offers.filter(o => {
+              const daysLeft = Math.ceil((new Date(o.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+              return daysLeft >= 0 && daysLeft <= 7;
+            }).length}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Expiring in 7 days</p>
+        </div>
+      </div>
+
+      {/* Search and Filter - Clean Layout */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">Search & Filter</h3>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1 relative">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by title, vendor, code, or category..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Offers List - Card View */}
       {filteredOffers.length === 0 ? (
-        <div className="text-center py-12">
-          <AlertCircleIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground text-lg">No offers found</p>
-          <p className="text-muted-foreground text-sm mt-2">Try adjusting your search or filters</p>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
+          <AlertCircleIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-600 text-lg">No offers found</p>
+          <p className="text-gray-500 text-sm mt-1">Try adjusting your search or filters</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4">
+        <div className="space-y-4">
           {filteredOffers.map((offer) => {
-            const expiringStatus = getExpiringStatus(offer.endDate);
             return (
-              <Card key={offer._id} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
+              <div key={offer._id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-orange-300 transition-all overflow-hidden">
+                <div className="p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+                    {/* Offer Info */}
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-semibold text-foreground">{offer.title}</h3>
-                        <Badge variant={offer.isActive ? 'default' : 'secondary'}>
-                          {offer.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-100 to-red-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-lg">🏷️</span>
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-lg">{offer.title}</h3>
+                          <p className="text-xs text-gray-600">{offer.description}</p>
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground">{offer.description}</p>
                     </div>
+                    {/* Badge */}
+                    <Badge className={`${offer.isActive ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-gray-100 text-gray-800 border border-gray-300'}`}>
+                      {offer.isActive ? '✓ Active' : '○ Inactive'}
+                    </Badge>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+
+                  {/* Offer Details Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-4 pb-4 border-b border-gray-100">
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Discount</p>
-                      <p className="text-lg font-bold text-primary">
-                        {offer.offerType === 'percentage' ? `${offer.offerValue}%` : `$${offer.offerValue}`} off
+                      <p className="text-xs text-gray-600 font-medium mb-1 uppercase">Discount</p>
+                      <p className="text-xl font-bold text-orange-600">
+                        {offer.discountType === 'percentage' ? `${offer.discount}%` : `$${offer.discount}`}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Code</p>
-                      <p className="text-sm font-mono font-semibold text-foreground">{offer.code}</p>
+                      <p className="text-xs text-gray-600 font-medium mb-1 uppercase">Code</p>
+                      <p className="text-sm font-mono font-semibold text-gray-900 bg-gray-50 px-2 py-1 rounded">{offer.code}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Category</p>
-                      <Badge variant="outline">{offer.category}</Badge>
+                      <p className="text-xs text-gray-600 font-medium mb-1 uppercase">Category</p>
+                      <Badge variant="outline" className="text-xs">{offer.category}</Badge>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Students Redeemed</p>
-                      <p className="text-lg font-bold text-green-600 dark:text-green-400">{offer.studentRedemptionCount || 0}</p>
+                      <p className="text-xs text-gray-600 font-medium mb-1 uppercase">Vendor</p>
+                      <p className="text-sm text-gray-900">{offer.vendor?.businessName || offer.vendorId?.businessName || 'Unknown'}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground mb-1">Vendor</p>
-                      <p className="text-sm text-foreground">{offer.vendorId?.businessName || 'Unknown'}</p>
+                      <p className="text-xs text-gray-600 font-medium mb-1 uppercase">Approval</p>
+                      <Badge className={`text-xs ${
+                        offer.status === 'active' ? 'bg-green-100 text-green-800' :
+                        offer.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        offer.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {offer.status === 'active' ? '✓ Approved' :
+                         offer.status === 'pending' ? '⏳ Pending' :
+                         offer.status === 'rejected' ? '✕ Rejected' :
+                         'Unknown'}
+                      </Badge>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className={`text-sm font-medium px-2 py-1 rounded ${expiringStatus.color}`}>
-                      {expiringStatus.label}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-auto">
+                  {/* Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-gray-500">
                       Created: {new Date(offer.createdAt).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      variant={offer.isActive ? 'outline' : 'default'}
-                      onClick={() => handleToggleStatus(offer._id, offer.isActive)}
-                      disabled={processingId === offer._id}
-                    >
-                      {processingId === offer._id ? (
-                        <Loader2Icon className="w-4 h-4 animate-spin" />
-                      ) : offer.isActive ? (
-                        'Deactivate'
-                      ) : (
-                        'Activate'
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDeleteOffer(offer._id)}
-                      disabled={processingId === offer._id}
-                    >
-                      {processingId === offer._id ? (
-                        <Loader2Icon className="w-4 h-4 animate-spin" />
-                      ) : (
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      {offer.status === 'pending' ? (
                         <>
-                          <TrashIcon className="w-4 h-4 mr-2" />
-                          Delete
+                          <Button
+                            size="sm"
+                            onClick={() => handleApproveOffer(offer._id)}
+                            disabled={processingId === offer._id}
+                            className="text-xs bg-green-600 text-white hover:bg-green-700"
+                          >
+                            {processingId === offer._id ? (
+                              <>
+                                <Loader2Icon className="w-3 h-3 animate-spin mr-1" />
+                                Approving...
+                              </>
+                            ) : (
+                              '✓ Approve'
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleRejectOffer(offer._id)}
+                            disabled={processingId === offer._id}
+                            className="text-xs bg-red-600 text-white hover:bg-red-700"
+                          >
+                            {processingId === offer._id ? (
+                              <>
+                                <Loader2Icon className="w-3 h-3 animate-spin mr-1" />
+                                Rejecting...
+                              </>
+                            ) : (
+                              '✕ Reject'
+                            )}
+                          </Button>
                         </>
+                      ) : (
+                        <Button
+                          size="sm"
+                          onClick={() => handleToggleStatus(offer._id, offer.isActive)}
+                          disabled={processingId === offer._id}
+                          className={`text-xs ${
+                            offer.isActive
+                              ? 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                        >
+                          {processingId === offer._id ? (
+                            <>
+                              <Loader2Icon className="w-3 h-3 animate-spin mr-1" />
+                              {offer.isActive ? 'Deactivating...' : 'Activating...'}
+                            </>
+                          ) : offer.isActive ? (
+                            'Deactivate'
+                          ) : (
+                            'Activate'
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteOffer(offer._id)}
+                        disabled={processingId === offer._id}
+                        className="text-xs"
+                      >
+                        {processingId === offer._id ? (
+                          <>
+                            <Loader2Icon className="w-3 h-3 animate-spin mr-1" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <TrashIcon className="w-3 h-3 mr-1" />
+                            Delete
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })}
         </div>

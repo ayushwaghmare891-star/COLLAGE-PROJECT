@@ -4,7 +4,7 @@ const ADMIN_API_BASE = `${API_BASE_URL}/admin/dashboard`;
 
 // Get admin dashboard
 export const getAdminDashboard = async () => {
-  const response = await fetch(`${ADMIN_API_BASE}/dashboard`, {
+  const response = await fetch(`${ADMIN_API_BASE}`, {
     headers: getHeaders(),
   });
   if (!response.ok) throw new Error('Failed to fetch dashboard');
@@ -27,21 +27,7 @@ export const getStudents = async (page = 1, limit = 10, verificationStatus = 'al
   return response.json();
 };
 
-// Get all vendors
-export const getVendors = async (page = 1, limit = 10, status = 'all', search = '') => {
-  const params = new URLSearchParams({
-    page: page.toString(),
-    limit: limit.toString(),
-    status,
-    search,
-  });
 
-  const response = await fetch(`${ADMIN_API_BASE}/vendors?${params}`, {
-    headers: getHeaders(),
-  });
-  if (!response.ok) throw new Error('Failed to fetch vendors');
-  return response.json();
-};
 
 // Verify student
 export const verifyStudent = async (studentId: string, status: 'verified' | 'rejected', remarks?: string) => {
@@ -54,16 +40,7 @@ export const verifyStudent = async (studentId: string, status: 'verified' | 'rej
   return response.json();
 };
 
-// Update vendor status
-export const updateVendorStatus = async (vendorId: string, status: string, remarks?: string) => {
-  const response = await fetch(`${ADMIN_API_BASE}/vendors/${vendorId}/status`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify({ status, remarks }),
-  });
-  if (!response.ok) throw new Error('Failed to update vendor status');
-  return response.json();
-};
+
 
 // Get pending verifications
 export const getPendingVerifications = async (type = 'all') => {
@@ -98,14 +75,29 @@ export const rejectStudentVerification = async (studentId: string, rejectionReas
   return response.json();
 };
 
-// Get vendor campaigns
-export const getVendorCampaigns = async (vendorId: string) => {
-  const response = await fetch(`${ADMIN_API_BASE}/vendors/${vendorId}/campaigns`, {
+// Approve student account (final approval after document verification)
+export const approveStudentAccount = async (studentId: string, remarks?: string) => {
+  const response = await fetch(`${ADMIN_API_BASE}/students/${studentId}/approval`, {
+    method: 'POST',
     headers: getHeaders(),
+    body: JSON.stringify({ approvalStatus: 'approved', remarks }),
   });
-  if (!response.ok) throw new Error('Failed to fetch vendor campaigns');
+  if (!response.ok) throw new Error('Failed to approve student account');
   return response.json();
 };
+
+// Reject student account
+export const rejectStudentAccount = async (studentId: string, remarks: string) => {
+  const response = await fetch(`${ADMIN_API_BASE}/students/${studentId}/approval`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ approvalStatus: 'rejected', remarks }),
+  });
+  if (!response.ok) throw new Error('Failed to reject student account');
+  return response.json();
+};
+
+
 
 // Get platform analytics
 export const getPlatformAnalytics = async (startDate?: string, endDate?: string) => {
@@ -131,16 +123,7 @@ export const suspendStudent = async (studentId: string, reason: string) => {
   return response.json();
 };
 
-// Suspend vendor
-export const suspendVendor = async (vendorId: string, reason: string) => {
-  const response = await fetch(`${ADMIN_API_BASE}/vendors/${vendorId}/suspend`, {
-    method: 'POST',
-    headers: getHeaders(),
-    body: JSON.stringify({ reason }),
-  });
-  if (!response.ok) throw new Error('Failed to suspend vendor');
-  return response.json();
-};
+
 
 // Get fraud reports
 export const getFraudReports = async (page = 1, limit = 10) => {
@@ -153,6 +136,56 @@ export const getFraudReports = async (page = 1, limit = 10) => {
     headers: getHeaders(),
   });
   if (!response.ok) throw new Error('Failed to fetch fraud reports');
+  return response.json();
+};
+
+// Get pending coupons for approval
+export const getPendingCoupons = async () => {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons/pending`, {
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch pending coupons');
+  return response.json();
+};
+
+// Get all coupons with approval status
+export const getAllCoupons = async () => {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons/all`, {
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch coupons');
+  return response.json();
+};
+
+// Approve coupon
+export const approveCoupon = async (couponId: string, notes?: string) => {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons/${couponId}/approve`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ approvalNotes: notes }),
+  });
+  if (!response.ok) throw new Error('Failed to approve coupon');
+  return response.json();
+};
+
+// Reject coupon
+export const rejectCoupon = async (couponId: string, reason: string) => {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons/${couponId}/reject`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ rejectionReason: reason }),
+  });
+  if (!response.ok) throw new Error('Failed to reject coupon');
+  return response.json();
+};
+
+// Delete coupon (admin only)
+export const deleteCouponAdmin = async (couponId: string) => {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons/${couponId}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to delete coupon');
   return response.json();
 };
 
@@ -195,5 +228,25 @@ export const deleteUser = async (userId: string) => {
     headers: getHeaders(),
   });
   if (!response.ok) throw new Error('Failed to delete user');
+  return response.json();
+};
+// Get pending student documents
+export const getPendingDocuments = async (userType = 'all') => {
+  const params = new URLSearchParams({ userType });
+  const response = await fetch(`${API_BASE_URL}/verification/pending-documents?${params}`, {
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch pending documents');
+  return response.json();
+};
+
+// Verify/approve document
+export const verifyDocument = async (documentId: string, status: 'verified' | 'rejected', remarks?: string) => {
+  const response = await fetch(`${API_BASE_URL}/verification/verify-document/${documentId}`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify({ status, remarks }),
+  });
+  if (!response.ok) throw new Error('Failed to verify document');
   return response.json();
 };

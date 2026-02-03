@@ -64,7 +64,7 @@ export function LandingPage() {
       title: 'For Admins',
       description: 'Manage the platform and monitor all activities',
       color: 'from-indigo-600 to-blue-600',
-      action: () => navigate('/login'),
+      action: () => navigate('/admin/login'),
       buttonText: 'Admin Login'
     }
   ];
@@ -111,15 +111,15 @@ export function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8" aria-labelledby="hero-heading">
+      <section className="pt-20 sm:pt-32 pb-16 sm:pb-20 px-3 sm:px-6 lg:px-8" aria-labelledby="hero-heading">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center space-y-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-full border border-purple-200 dark:border-purple-800">
-              <SparklesIcon className="w-4 h-4 text-purple-600" strokeWidth={2} />
-              <span className="text-sm font-semibold text-purple-600">Trusted by 50,000+ Students</span>
+          <div className="text-center space-y-6 sm:space-y-8">
+            <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-full border border-purple-200 dark:border-purple-800">
+              <SparklesIcon className="w-3 h-3 sm:w-4 sm:h-4 text-purple-600" strokeWidth={2} />
+              <span className="text-xs sm:text-sm font-semibold text-purple-600">Trusted by 50,000+ Students</span>
             </div>
 
-            <h1 id="hero-heading" className="text-5xl sm:text-6xl lg:text-7xl font-bold leading-tight">
+            <h1 id="hero-heading" className="text-4xl sm:text-5xl lg:text-7xl font-bold leading-tight">
               <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                 Unlock Exclusive
               </span>
@@ -129,49 +129,49 @@ export function LandingPage() {
               <span className="text-gray-900 dark:text-white">Instantly! <span role="img" aria-label="graduation cap and money">🎓💸</span></span>
             </h1>
 
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+            <p className="text-base sm:text-lg lg:text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto px-2">
               Join thousands of students saving money on food, fashion, tech, and more. 
               Verify once, save forever.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-6 sm:mt-8 px-2 sm:px-0">
               <Button
                 onClick={() => navigate('/signup')}
                 size="lg"
-                className="group relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-2xl text-lg px-10 py-7 rounded-2xl font-bold hover:shadow-purple-500/50 hover:scale-105 transition-all duration-300 overflow-hidden"
+                className="w-full sm:w-auto group relative bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-2xl text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-7 rounded-2xl font-bold hover:shadow-purple-500/50 hover:scale-105 transition-all duration-300 overflow-hidden"
               >
                 <span className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <span className="relative flex items-center gap-2">
-                  <SparklesIcon className="w-6 h-6 animate-pulse" strokeWidth={2.5} />
+                <span className="relative flex items-center justify-center gap-2">
+                  <SparklesIcon className="w-4 h-4 sm:w-6 sm:h-6 animate-pulse" strokeWidth={2.5} />
                   Join Now - It's Free!
                 </span>
               </Button>
               <Button
                 onClick={() => navigate('/discounts')}
                 size="lg"
-                className="group relative bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 shadow-xl text-lg px-10 py-7 rounded-2xl border-2 border-purple-200 dark:border-purple-800 font-bold hover:shadow-purple-500/30 hover:scale-105 transition-all duration-300"
+                className="w-full sm:w-auto group relative bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 shadow-xl text-base sm:text-lg px-6 sm:px-10 py-5 sm:py-7 rounded-2xl border-2 border-purple-200 dark:border-purple-800 font-bold hover:shadow-purple-500/30 hover:scale-105 transition-all duration-300"
               >
-                <span className="relative flex items-center gap-2">
-                  <TagIcon className="w-6 h-6 group-hover:rotate-12 transition-transform" strokeWidth={2.5} />
+                <span className="relative flex items-center justify-center gap-2">
+                  <TagIcon className="w-4 h-4 sm:w-6 sm:h-6 group-hover:rotate-12 transition-transform" strokeWidth={2.5} />
                   View Offers
                 </span>
               </Button>
             </div>
 
-            <div className="flex items-center justify-center gap-8 pt-8">
+            <div className="flex flex-col xs:flex-row items-center justify-center gap-4 xs:gap-6 sm:gap-8 pt-6 sm:pt-8 px-2">
               <div className="text-center">
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">500+</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Partner Brands</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">500+</p>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Partner Brands</p>
               </div>
-              <div className="w-px h-12 bg-gray-300 dark:bg-gray-700" />
+              <div className="hidden xs:block w-px h-10 sm:h-12 bg-gray-300 dark:bg-gray-700" />
               <div className="text-center">
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">50K+</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Active Students</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">50K+</p>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Active Students</p>
               </div>
-              <div className="w-px h-12 bg-gray-300 dark:bg-gray-700" />
+              <div className="hidden xs:block w-px h-10 sm:h-12 bg-gray-300 dark:bg-gray-700" />
               <div className="text-center">
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">$2M+</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Money Saved</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">$2M+</p>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Money Saved</p>
               </div>
             </div>
           </div>
@@ -179,25 +179,25 @@ export function LandingPage() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm" aria-labelledby="features-heading">
+      <section className="py-16 sm:py-20 px-3 sm:px-6 lg:px-8 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm" aria-labelledby="features-heading">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 id="features-heading" className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 id="features-heading" className="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-4">
               Why Students Love Us <span role="img" aria-label="red heart">❤️</span>
             </h2>
-            <p className="text-xl text-gray-600 dark:text-gray-300">
+            <p className="text-base sm:text-xl text-gray-600 dark:text-gray-300 px-2">
               Everything you need to save money as a student
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8">
             {features.map((feature, index) => (
               <Card
                 key={index}
                 className="group hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm"
               >
-                <CardContent className="p-8 text-center">
-                  <div className={`w-16 h-16 mx-auto mb-6 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`} role="img" aria-label={feature.title}>
+                <CardContent className="p-4 sm:p-8 text-center">
+                  <div className={`w-14 h-14 sm:w-16 sm:h-16 mx-auto mb-4 sm:mb-6 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`} role="img" aria-label={feature.title}>
                     <feature.icon className="w-8 h-8 text-white" strokeWidth={2} aria-hidden="true" />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">

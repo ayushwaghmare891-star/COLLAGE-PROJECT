@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { useAuthStore } from '../../stores/authStore';
 import { useToast } from '../../hooks/use-toast';
-import { UserIcon, BuildingIcon, MailIcon, LockIcon, SparklesIcon, ShieldIcon, EyeIcon, EyeOffIcon } from 'lucide-react';
+import { UserIcon, MailIcon, LockIcon, SparklesIcon, ShieldIcon, EyeIcon, EyeOffIcon } from 'lucide-react';
 
 export function LoginForm() {
   const navigate = useNavigate();
@@ -17,8 +17,6 @@ export function LoginForm() {
 
   const [studentEmail, setStudentEmail] = useState('');
   const [studentPassword, setStudentPassword] = useState('');
-  const [vendorEmail, setVendorEmail] = useState('');
-  const [vendorPassword, setVendorPassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
 
@@ -45,28 +43,6 @@ export function LoginForm() {
     }
   };
 
-  const handleVendorLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
-    const success = await login(vendorEmail, vendorPassword, 'vendor');
-    
-    setLoading(false);
-
-    if (success) {
-      toast({
-        title: "🚀 Welcome back!",
-        description: "You've successfully logged in to your vendor dashboard",
-      });
-      navigate('/vendor/dashboard');
-    } else {
-      toast({
-        title: "❌ Login failed",
-        description: "Invalid credentials. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,20 +103,13 @@ export function LoginForm() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="student" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-8 bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl">
+              <TabsList className="grid w-full grid-cols-2 mb-8 bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl">
                 <TabsTrigger 
                   value="student" 
                   className="flex items-center gap-2 rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white transition-all"
                 >
                   <UserIcon className="w-4 h-4" strokeWidth={2} />
                   <span className="hidden sm:inline">Student</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="vendor"
-                  className="flex items-center gap-2 rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-teal-600 data-[state=active]:text-white transition-all"
-                >
-                  <BuildingIcon className="w-4 h-4" strokeWidth={2} />
-                  <span className="hidden sm:inline">Vendor</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="admin"
@@ -237,96 +206,6 @@ export function LoginForm() {
                         className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-bold"
                       >
                         Sign up now →
-                      </button>
-                    </p>
-                  </div>
-                </form>
-              </TabsContent>
-
-              <TabsContent value="vendor">
-                <form onSubmit={handleVendorLogin} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="vendor-email" className="text-gray-900 dark:text-white flex items-center gap-2 text-base font-semibold">
-                      <MailIcon className="w-4 h-4 text-green-600" strokeWidth={2} />
-                      Business Email
-                    </Label>
-                    <input
-                      id="vendor-email"
-                      type="email"
-                      value={vendorEmail}
-                      onChange={(e) => setVendorEmail(e.target.value)}
-                      placeholder="vendor@company.com"
-                      required
-                      autoComplete="email"
-                      className="w-full px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="vendor-password" className="text-gray-900 dark:text-white flex items-center gap-2 text-base font-semibold">
-                      <LockIcon className="w-4 h-4 text-green-600" strokeWidth={2} />
-                      Password
-                    </Label>
-                    <div className="relative">
-                      <input
-                        id="vendor-password"
-                        type={showPassword ? "text" : "password"}
-                        value={vendorPassword}
-                        onChange={(e) => setVendorPassword(e.target.value)}
-                        placeholder="••••••••"
-                        required
-                        autoComplete="current-password"
-                        className="w-full px-4 py-3 bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500" />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">Remember me</span>
-                    </label>
-                    <button type="button" className="text-sm text-green-600 hover:text-green-700 font-medium">
-                      Forgot password?
-                    </button>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="group w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white py-6 rounded-xl text-lg font-bold shadow-lg hover:shadow-green-500/50 hover:scale-105 transition-all duration-300 relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                  >
-                    <span className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    {loading ? (
-                      <span className="relative flex items-center gap-2">
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Signing in...
-                      </span>
-                    ) : (
-                      <span className="relative flex items-center gap-2">
-                        <BuildingIcon className="w-5 h-5" strokeWidth={2.5} />
-                        Sign In as Vendor
-                      </span>
-                    )}
-                  </Button>
-
-                  <div className="text-center">
-                    <p className="text-gray-700 dark:text-gray-300">
-                      New vendor?{' '}
-                      <button
-                        type="button"
-                        onClick={() => navigate('/signup')}
-                        className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-bold"
-                      >
-                        Register your business →
                       </button>
                     </p>
                   </div>

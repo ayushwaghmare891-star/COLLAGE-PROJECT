@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Progress } from '../ui/progress';
 import { useAuthStore } from '../../stores/authStore';
 import { useToast } from '../../hooks/use-toast';
-import { UserIcon, BuildingIcon, MailIcon, LockIcon, UserCircleIcon, SchoolIcon, SparklesIcon, UploadIcon, CheckCircleIcon, EyeIcon, EyeOffIcon, PhoneIcon, MapPinIcon, BookOpenIcon, CalendarIcon, FileTextIcon, ImageIcon } from 'lucide-react';
+import { UserIcon, MailIcon, LockIcon, UserCircleIcon, SchoolIcon, SparklesIcon, UploadIcon, CheckCircleIcon, EyeIcon, EyeOffIcon, PhoneIcon, MapPinIcon, BookOpenIcon, CalendarIcon, FileTextIcon, ImageIcon } from 'lucide-react';
 
 export function SignupForm() {
   const navigate = useNavigate();
@@ -17,9 +17,6 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [studentStep, setStudentStep] = useState(1);
   const [studentIdFile, setStudentIdFile] = useState<File | null>(null);
-  const [businessLicense, setBusinessLicense] = useState<File | null>(null);
-  const [businessLogo, setBusinessLogo] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string>('');
 
   const [studentData, setStudentData] = useState({
     name: '',
@@ -35,36 +32,12 @@ export function SignupForm() {
     agreeToTerms: false,
   });
 
-  const [vendorData, setVendorData] = useState({
-    businessName: '',
-    ownerName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-    businessType: 'Restaurant',
-    address: '',
-    description: '',
-    agreeToTerms: false,
-  });
-
   const handleStudentIdUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setStudentIdFile(file);
       toast({
         title: "✅ File uploaded",
-        description: `${file.name} is ready to submit`,
-      });
-    }
-  };
-
-  const handleBusinessLicenseUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setBusinessLicense(file);
-      toast({
-        title: "✅ License uploaded",
         description: `${file.name} is ready to submit`,
       });
     }
@@ -184,114 +157,6 @@ export function SignupForm() {
     }
   };
 
-  const handleVendorSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    // Validate owner name (minimum 3 characters)
-    if (!vendorData.ownerName || vendorData.ownerName.trim().length < 3) {
-      toast({
-        title: "❌ Invalid owner name",
-        description: "Owner name must be at least 3 characters long",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate business name
-    if (!vendorData.businessName || vendorData.businessName.trim().length < 2) {
-      toast({
-        title: "❌ Invalid business name",
-        description: "Business name must be at least 2 characters long",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(vendorData.email)) {
-      toast({
-        title: "❌ Invalid email",
-        description: "Please enter a valid email address",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Validate password length (minimum 6 characters)
-    if (!vendorData.password || vendorData.password.length < 6) {
-      toast({
-        title: "❌ Weak password",
-        description: "Password must be at least 6 characters long",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (vendorData.password !== vendorData.confirmPassword) {
-      toast({
-        title: "❌ Passwords don't match",
-        description: "Please make sure your passwords match",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!vendorData.agreeToTerms) {
-      toast({
-        title: "📋 Terms required",
-        description: "Please agree to the vendor terms",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!businessLicense) {
-      toast({
-        title: "📄 Business license required",
-        description: "Please upload your business license",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const success = await signup(
-        vendorData.email,
-        vendorData.password,
-        vendorData.ownerName,
-        'vendor',
-        { companyName: vendorData.businessName }
-      );
-
-      setLoading(false);
-
-      if (success) {
-        toast({
-          title: "🚀 Welcome to Student Deals!",
-          description: "Your vendor account is ready. Let's grow together!",
-        });
-        navigate('/vendor/dashboard');
-      } else {
-        toast({
-          title: "❌ Signup failed",
-          description: "Please try again",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      setLoading(false);
-      const errorMsg = error instanceof Error ? error.message : 'Signup failed. Please try again.';
-      toast({
-        title: "❌ Signup error",
-        description: errorMsg,
-        variant: "destructive",
-      });
-    }
-  };
-
   const businessTypes = [
     'Restaurant',
     'Clothing Store',
@@ -351,20 +216,13 @@ export function SignupForm() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="student" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-8 bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl">
+              <TabsList className="grid w-full grid-cols-1 mb-8 bg-gray-100 dark:bg-gray-800 p-1 rounded-2xl">
                 <TabsTrigger 
                   value="student" 
                   className="flex items-center gap-2 rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white transition-all"
                 >
                   <UserIcon className="w-4 h-4" strokeWidth={2} />
                   I'm a Student 🎓
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="vendor"
-                  className="flex items-center gap-2 rounded-xl data-[state=active]:bg-gradient-to-r data-[state=active]:from-green-500 data-[state=active]:to-teal-600 data-[state=active]:text-white transition-all"
-                >
-                  <BuildingIcon className="w-4 h-4" strokeWidth={2} />
-                  I'm a Vendor 🏪
                 </TabsTrigger>
               </TabsList>
 
@@ -749,10 +607,22 @@ export function SignupForm() {
                   </div>
                 </form>
               </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
 
-              <TabsContent value="vendor">
-                <form onSubmit={handleVendorSignup} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="text-center mt-6">
+          <button
+            onClick={() => navigate('/')}
+            className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors font-semibold"
+          >
+            ← Back to Home
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
                     <div className="space-y-2">
                       <Label htmlFor="vendor-business-name" className="text-gray-900 dark:text-white flex items-center gap-2 text-base font-semibold">
                         <BuildingIcon className="w-4 h-4 text-green-600" strokeWidth={2} />

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Bell, User, Settings, LogOut, ChevronDown, Menu } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../../stores/authStore'
 
 interface StudentTopNavProps {
   onMenuClick: () => void
@@ -7,8 +9,17 @@ interface StudentTopNavProps {
 }
 
 export function StudentTopNav({ onMenuClick, studentName = 'Student' }: StudentTopNavProps) {
+  const navigate = useNavigate()
+  const { logout } = useAuthStore()
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [notificationCount] = useState(3)
+
+  const handleLogout = async () => {
+    await logout()
+    setTimeout(() => {
+      navigate('/student/login', { replace: true })
+    }, 100)
+  }
 
   return (
     <nav className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
@@ -73,7 +84,7 @@ export function StudentTopNav({ onMenuClick, studentName = 'Student' }: StudentT
               </div>
 
               <div className="p-2 border-t border-gray-200">
-                <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors">
+                <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded transition-colors">
                   <LogOut size={16} />
                   Logout
                 </button>

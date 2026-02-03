@@ -28,7 +28,6 @@ export const ENDPOINTS = {
   GET_ALL_DISCOUNTS: '/discounts',
   GET_DISCOUNT: (id: string) => `/discounts/${id}`,
   CREATE_DISCOUNT: '/discounts',
-  GET_VENDOR_DISCOUNTS: '/discounts/vendor/my-discounts',
   UPDATE_DISCOUNT: (id: string) => `/discounts/${id}`,
   DELETE_DISCOUNT: (id: string) => `/discounts/${id}`,
   REDEEM_DISCOUNT: (id: string) => `/discounts/${id}/redeem`,
@@ -41,11 +40,7 @@ export const ENDPOINTS = {
   DEACTIVATE_USER: (id: string) => `/users/${id}/deactivate`,
 
   // Admin endpoints
-  GET_PENDING_VENDORS: '/admin/vendors/pending',
-  VERIFY_VENDOR: (id: string) => `/admin/vendors/${id}/verify`,
-  REJECT_VENDOR: (id: string) => `/admin/vendors/${id}/reject`,
   GET_ANALYTICS: '/admin/analytics',
-  GET_VENDOR_ANALYTICS: '/admin/vendor-analytics',
 };
 
 // API request helper

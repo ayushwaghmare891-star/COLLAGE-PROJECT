@@ -1,11 +1,11 @@
 import { API_BASE_URL, getHeaders } from './api';
 
 const STUDENT_API_BASE = `${API_BASE_URL}/student/dashboard`;
-const COUPON_API_BASE = `${API_BASE_URL}/coupon`;
+const COUPON_API_BASE = `${API_BASE_URL}/coupons`;
 
 // Get student dashboard
 export const getStudentDashboard = async () => {
-  const response = await fetch(`${STUDENT_API_BASE}/dashboard`, {
+  const response = await fetch(`${STUDENT_API_BASE}`, {
     headers: getHeaders(),
   });
   if (!response.ok) throw new Error('Failed to fetch dashboard');
@@ -22,13 +22,16 @@ export const getStudentDiscounts = async (page = 1, limit = 10) => {
   return response.json();
 };
 
-// Get all active coupons from vendors
+// Get all active coupons for student
 export const getActiveCoupons = async (page = 1, limit = 10) => {
   const response = await fetch(
-    `${COUPON_API_BASE}/active?page=${page}&limit=${limit}`,
+    `${STUDENT_API_BASE}/coupons?page=${page}&limit=${limit}`,
     { headers: getHeaders() }
   );
   if (!response.ok) throw new Error('Failed to fetch coupons');
+  return response.json();
+};
+
 // Get offers by category
 export const getOffersByCategory = async (category: string, page = 1, limit = 10) => {
   const response = await fetch(

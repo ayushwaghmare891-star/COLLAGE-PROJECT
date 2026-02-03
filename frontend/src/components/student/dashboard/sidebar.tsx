@@ -12,6 +12,7 @@ import {
   X
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../../stores/authStore'
 
 interface StudentSidebarProps {
   activeSection: string
@@ -22,6 +23,15 @@ interface StudentSidebarProps {
 
 export function StudentSidebar({ activeSection, onSectionChange, isOpen, onToggle }: StudentSidebarProps) {
   const navigate = useNavigate()
+  const { logout } = useAuthStore()
+
+  const handleLogout = async () => {
+    await logout()
+    // Add a small delay to ensure state is updated
+    setTimeout(() => {
+      navigate('/student/login', { replace: true })
+    }, 100)
+  }
 
   const menuItems = [
     { id: 'overview', label: 'Dashboard', icon: LayoutDashboard, path: '/student/dashboard' },
@@ -31,7 +41,7 @@ export function StudentSidebar({ activeSection, onSectionChange, isOpen, onToggl
     { id: 'saved', label: 'Saved Offers', icon: Heart, path: '/student/save-offers' },
     { id: 'notifications', label: 'Notifications', icon: Bell, path: '/student/notifications' },
     { id: 'profile', label: 'Profile', icon: User, path: '/student/profile' },
-    { id: 'help-support', label: 'Help & Support', icon: HelpCircle, path: '/student/help&support' },
+    { id: 'help-support', label: 'Help & Support', icon: HelpCircle, path: '/student/help-support' },
   ]
 
   const handleMenuClick = (item: typeof menuItems[0]) => {
@@ -105,7 +115,7 @@ export function StudentSidebar({ activeSection, onSectionChange, isOpen, onToggl
 
         {/* Logout Section */}
         <div className="p-4 border-t border-gray-200">
-          <button className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 rounded-lg transition-all duration-200 text-red-600">
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-red-50 rounded-lg transition-all duration-200 text-red-600">
             <LogOut size={20} />
             <span className="text-sm font-medium">Logout</span>
           </button>

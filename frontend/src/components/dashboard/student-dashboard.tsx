@@ -6,6 +6,7 @@ import { SearchAndFilter } from './search-and-filter';
 import { DiscountCard } from './discount-card';
 import { ProfileModal } from './profile-modal.tsx';
 import { Sparkles } from 'lucide-react';
+import { useAuthStore } from '../../stores/authStore';
 
 // Mock data types
 interface Discount {
@@ -132,9 +133,11 @@ export function StudentDashboard() {
   const [savedOffers, setSavedOffers] = useState<Set<string>>(new Set());
 
   // Mock student data
+  const { user } = useAuthStore();
+  
   const studentData: StudentData = {
-    name: 'Alex Johnson',
-    email: 'alex.johnson@university.edu',
+    name: user?.name || 'Student',
+    email: user?.email || 'student@university.edu',
     verificationStatus: 'verified',
     profileImage: undefined,
     studentId: 'STU-2024-001234',
@@ -195,7 +198,7 @@ export function StudentDashboard() {
 
       {/* Main Content */}
       <div className="flex-1 w-full overflow-y-auto">
-        <div className="p-4 md:p-8 max-w-full">
+        <div className="p-3 sm:p-4 md:p-8 max-w-full">
           {/* Welcome Section */}
           <WelcomeSection
             studentName={studentData.name}
@@ -222,14 +225,14 @@ export function StudentDashboard() {
 
           {/* Exclusive Student-Only Deals */}
           {exclusiveDeals.length > 0 && (
-            <section className="mb-10">
-              <div className="flex items-center gap-2 mb-6">
-                <Sparkles className="w-6 h-6 text-purple-600" />
-                <h2 className="text-2xl font-bold text-gray-900">
+            <section className="mb-8 sm:mb-10">
+              <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                   🎓 Exclusive Student Deals
                 </h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 {exclusiveDeals.map((discount) => (
                   <DiscountCard
                     key={discount.id}
@@ -245,12 +248,12 @@ export function StudentDashboard() {
 
           {/* Limited-Time Offers */}
           {limitedTimeOffers.length > 0 && (
-            <section className="mb-10">
-              <div className="flex items-center gap-2 mb-6">
-                <span className="text-2xl">⏰</span>
-                <h2 className="text-2xl font-bold text-gray-900">Limited-Time Offers</h2>
+            <section className="mb-8 sm:mb-10">
+              <div className="flex items-center gap-2 mb-4 sm:mb-6">
+                <span className="text-xl sm:text-2xl">⏰</span>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Limited-Time Offers</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                 {limitedTimeOffers.map((discount) => (
                   <DiscountCard
                     key={discount.id}
@@ -279,15 +282,15 @@ export function StudentDashboard() {
             };
 
             return (
-              <section key={category} className="mb-10">
-                <div className="flex items-center gap-2 mb-6">
-                  <span className="text-2xl">{categoryIcons[category] || '🏷️'}</span>
-                  <h2 className="text-2xl font-bold text-gray-900">{category} Deals</h2>
-                  <span className="ml-auto text-gray-600 font-semibold">
+              <section key={category} className="mb-8 sm:mb-10">
+                <div className="flex items-center gap-2 mb-4 sm:mb-6 flex-wrap">
+                  <span className="text-xl sm:text-2xl">{categoryIcons[category] || '🏷️'}</span>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{category} Deals</h2>
+                  <span className="ml-auto text-gray-600 font-semibold text-sm sm:text-base">
                     {discounts.length} offers
                   </span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
                   {discounts.map((discount) => (
                     <DiscountCard
                       key={discount.id}
@@ -304,8 +307,8 @@ export function StudentDashboard() {
 
           {/* Empty State */}
           {filteredDiscounts.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-xl text-gray-600">
+            <div className="text-center py-8 sm:py-12">
+              <p className="text-lg sm:text-xl text-gray-600 px-4">
                 No discounts found matching your search criteria. Try adjusting your filters!
               </p>
             </div>

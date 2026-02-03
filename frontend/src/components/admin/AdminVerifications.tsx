@@ -12,9 +12,10 @@ import {
   DownloadIcon,
   Clock,
   XIcon,
-  FileCheckIcon
+  Eye
 } from 'lucide-react';
 import { useToast } from '../../hooks/use-toast';
+import { verifyDocument } from '../../lib/adminAPI';
 
 interface VerificationDocument {
   _id: string;
@@ -49,19 +50,21 @@ export function AdminVerifications() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [userTypeFilter, setUserTypeFilter] = useState<'all' | 'student'>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<VerificationDocument | null>(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [documentView, setDocumentView] = useState<boolean>(false); // Toggle between user and document view
   const { toast } = useToast();
 
   useEffect(() => {
     fetchVerifications();
     window.scrollTo(0, 0);
-  }, []);
+  }, [documentView]);
 
   useEffect(() => {
     filterVerifications();
-  }, [verifications, searchTerm, statusFilter]);
+  }, [verifications, searchTerm, statusFilter, userTypeFilter]);
 
   const fetchVerifications = async () => {
     try {
@@ -72,7 +75,12 @@ export function AdminVerifications() {
         throw new Error('No authentication token found. Please login again.');
       }
 
-      const response = await fetch('http://localhost:5000/api/admin/pending-verifications', {
+      // Fetch from the appropriate endpoint based on view
+      const endpoint = documentView 
+        ? 'http://localhost:5000/api/verification/pending-documents'
+        : 'http://localhost:5000/api/admin/pending-verifications';
+
+      const response = await fetch(endpoint, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -90,7 +98,34 @@ export function AdminVerifications() {
       }
       
       const data = await response.json();
-      setVerifications(data.verifications || []);
+      
+      if (documentView) {
+        // Transform document data to match PendingVerification interface
+        const transformedDocs = (data.documents || []).map((doc: any) => ({
+          _id: doc._id,
+          username: doc.user?.email || 'Unknown',
+          email: doc.user?.email || '',
+          firstName: doc.user?.firstName || doc.user?.name || 'Unknown',
+          lastName: doc.user?.lastName || '',
+          userType: doc.user?.role || 'student',
+          type: doc.user?.role || 'student',
+          status: doc.status,
+          createdAt: doc.createdAt,
+          verificationDocument: {
+            _id: doc._id,
+            documentType: doc.documentType,
+            documentPath: doc.fileUrl,
+            documentFileName: doc.fileName,
+            documentSize: doc.fileSize || 0,
+            mimeType: doc.mimeType,
+            uploadedAt: doc.createdAt,
+            status: doc.status
+          }
+        }));
+        setVerifications(transformedDocs);
+      } else {
+        setVerifications(data.verifications || []);
+      }
     } catch (error: any) {
       console.error('Fetch verifications error:', error);
       toast({
@@ -105,6 +140,11 @@ export function AdminVerifications() {
 
   const filterVerifications = () => {
     let filtered = verifications;
+
+    // Apply user type filter
+    if (userTypeFilter !== 'all') {
+      filtered = filtered.filter(v => v.userType === userTypeFilter);
+    }
 
     // Apply status filter
     if (statusFilter !== 'all') {
@@ -127,11 +167,16 @@ export function AdminVerifications() {
 
   const formatDocumentType = (docType: string) => {
     const typeMap: { [key: string]: string } = {
+      'student_id': '🎓 Student ID',
       'student-id': '🎓 Student ID',
+      'business_license': '📋 Business License',
       'business-license': '📋 Business License',
       'aadhar': '🆔 Aadhar Card',
       'pan': '📝 PAN Card',
       'passport': '🛂 Passport',
+      'enrollment_letter': '📜 Enrollment Letter',
+      'enrollment-letter': '📜 Enrollment Letter',
+      'transcript': '📊 Transcript',
       'other': '📄 Other Document'
     };
     return typeMap[docType] || docType;
@@ -150,24 +195,35 @@ export function AdminVerifications() {
     setShowDocumentModal(true);
   };
 
-  const handleApproveVerification = async (id: string, name: string) => {
+  const handleApproveVerification = async (id: string, name: string, userType: string) => {
     if (!window.confirm(`Approve verification for ${name}?`)) return;
 
     try {
       setProcessingId(id);
       const token = localStorage.getItem('auth_token');
       
-      const response = await fetch(`http://localhost:5000/api/verification/${id}/approve`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      // If in document view, use document verification endpoint
+      if (documentView) {
+        await verifyDocument(id, 'verified', `Approved by admin`);
+      } else {
+        // Use the correct endpoint based on user type
+        const endpoint = userType === 'student' 
+          ? `http://localhost:5000/api/admin/students/${id}/verify`
+          : `http://localhost:5000/api/admin/vendors/${id}/status`;
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: 'verified' })
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to approve verification');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to approve verification');
+        }
       }
 
       setVerifications(verifications.map(v => 
@@ -176,7 +232,7 @@ export function AdminVerifications() {
 
       toast({
         title: '✅ Verification approved',
-        description: `${name}'s verification has been approved`,
+        description: `${name}'s verification has been approved. They can now login.`,
       });
     } catch (error: any) {
       toast({
@@ -189,7 +245,7 @@ export function AdminVerifications() {
     }
   };
 
-  const handleRejectVerification = async (id: string, name: string) => {
+  const handleRejectVerification = async (id: string, name: string, userType: string) => {
     const reason = prompt(`Enter rejection reason for ${name}:`);
     if (!reason) return;
 
@@ -197,18 +253,28 @@ export function AdminVerifications() {
       setProcessingId(id);
       const token = localStorage.getItem('auth_token');
       
-      const response = await fetch(`http://localhost:5000/api/verification/${id}/reject`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reason })
-      });
+      // If in document view, use document verification endpoint
+      if (documentView) {
+        await verifyDocument(id, 'rejected', reason);
+      } else {
+        // Use the correct endpoint based on user type
+        const endpoint = userType === 'student' 
+          ? `http://localhost:5000/api/admin/students/${id}/verify`
+          : `http://localhost:5000/api/admin/vendors/${id}/status`;
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status: 'rejected', remarks: reason })
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to reject verification');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || 'Failed to reject verification');
+        }
       }
 
       setVerifications(verifications.map(v => 
@@ -217,7 +283,7 @@ export function AdminVerifications() {
 
       toast({
         title: '✅ Verification rejected',
-        description: `${name}'s verification has been rejected`,
+        description: `${name}'s verification has been rejected. They've been notified via email.`,
       });
     } catch (error: any) {
       toast({
@@ -256,12 +322,15 @@ export function AdminVerifications() {
 
       for (const verification of pendingVerifications) {
         try {
-          const response = await fetch(`http://localhost:5000/api/verification/${verification._id}/approve`, {
-            method: 'PUT',
+          const endpoint = `http://localhost:5000/api/admin/students/${verification._id}/verify`;
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({ status: 'verified' })
           });
 
           if (response.ok) {
@@ -327,203 +396,254 @@ export function AdminVerifications() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">📋 Verifications</h1>
-        <p className="text-gray-600">Manage and review student verifications</p>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-l-4 border-l-yellow-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Pending</p>
-                <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
-              </div>
-              <Clock className="w-10 h-10 text-yellow-500 opacity-50" />
+    <div className="space-y-8 pb-8">
+      {/* Header - Student Inspired */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center text-2xl shadow-md">
+              ✅
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-green-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Approved</p>
-                <p className="text-3xl font-bold text-green-600">{stats.approved}</p>
-              </div>
-              <CheckCircleIcon className="w-10 h-10 text-green-500 opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-l-4 border-l-red-500">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Rejected</p>
-                <p className="text-3xl font-bold text-red-600">{stats.rejected}</p>
-              </div>
-              <XCircleIcon className="w-10 h-10 text-red-500 opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filter Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2 flex-1">
-              <SearchIcon className="w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name, email, or username..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 bg-transparent border-none outline-none text-gray-900 placeholder:text-gray-400"
-              />
-            </div>
-            <div className="flex gap-2 flex-wrap items-center justify-between">
-              <div className="flex gap-2 flex-wrap">
-                {(['all', 'pending', 'approved', 'rejected'] as const).map(status => (
-                  <button
-                    key={status}
-                    onClick={() => setStatusFilter(status)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      statusFilter === status
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </button>
-                ))}
-              </div>
-              {stats.pending > 0 && (
-                <Button
-                  onClick={handleApproveAll}
-                  disabled={processingId === 'all'}
-                  className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
-                >
-                  {processingId === 'all' ? '⏳ Approving All...' : `✅ Approve All (${stats.pending})`}
-                </Button>
-              )}
+            <div className="flex-1">
+              <h1 className="text-3xl md:text-4xl font-bold text-gray-900">
+                {documentView ? '📄 Document Verification' : 'Manage Verifications'}
+              </h1>
+              <p className="text-gray-600 mt-2">
+                {documentView 
+                  ? 'Review documents submitted by students - Check if real or fake'
+                  : 'Review and approve student document verifications'}
+              </p>
             </div>
           </div>
-        </CardHeader>
-      </Card>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setDocumentView(!documentView)}
+              className={`px-4 py-2 text-xs font-medium rounded-lg transition-colors ${
+                documentView
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {documentView ? '👥 Users View' : '📄 Documents View'}
+            </Button>
+          </div>
+        </div>
+      </div>
 
-      {/* Verifications List */}
-      <div className="space-y-4">
-        {filteredVerifications.length === 0 ? (
-          <Card className="border-dashed">
-            <CardContent className="pt-12 pb-12 text-center">
-              <AlertCircleIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-600 text-lg mb-2">No verifications found</p>
-              <p className="text-gray-500 text-sm">
-                {searchTerm ? 'Try adjusting your search filters' : 'All verifications have been processed'}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredVerifications.map((verification) => (
-            <Card key={verification._id} className="hover:shadow-md transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  {/* Left Section - User Info */}
-                  <div className="flex-1">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-blue-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                        {verification.firstName?.charAt(0).toUpperCase() || 'U'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">
+      {/* Stats Cards - Clean Layout */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-yellow-300 transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow-600 to-amber-600 flex items-center justify-center shadow-md">
+              <Clock className="w-6 h-6 text-white" strokeWidth={2} />
+            </div>
+            <p className="text-gray-600 text-xs font-medium uppercase tracking-wide">Pending</p>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{stats.pending}</p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-green-300 transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center shadow-md">
+              <CheckCircleIcon className="w-6 h-6 text-white" strokeWidth={2} />
+            </div>
+            <p className="text-gray-600 text-xs font-medium uppercase tracking-wide">Approved</p>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{stats.approved}</p>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-5 hover:shadow-md hover:border-red-300 transition-all">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-red-600 to-rose-600 flex items-center justify-center shadow-md">
+              <XCircleIcon className="w-6 h-6 text-white" strokeWidth={2} />
+            </div>
+            <p className="text-gray-600 text-xs font-medium uppercase tracking-wide">Rejected</p>
+          </div>
+          <p className="text-3xl font-bold text-gray-900">{stats.rejected}</p>
+        </div>
+      </div>
+
+      {/* Search and Filter - Clean Layout */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">Search & Filter</h3>
+        <div className="space-y-4">
+          <div className="relative">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by name, email, or username..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          
+          {/* User Type Filter */}
+          <div>
+            <p className="text-xs font-semibold text-gray-600 mb-2">User Type:</p>
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'student'] as const).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setUserTypeFilter(type)}
+                  className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    userTypeFilter === type
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {type === 'student' ? '🎓 Students' : 'All'}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Status Filter */}
+          <div>
+            <p className="text-xs font-semibold text-gray-600 mb-2">Status:</p>
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'pending', 'approved', 'rejected'] as const).map(status => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    statusFilter === status
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {stats.pending > 0 && (
+            <Button
+              onClick={handleApproveAll}
+              disabled={processingId === 'all'}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+            >
+              {processingId === 'all' ? '⏳ Approving All...' : `✅ Approve All (${stats.pending})`}
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Verifications List - Card View */}
+      {filteredVerifications.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-12 text-center">
+          <AlertCircleIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-600 text-lg">No verifications found</p>
+          <p className="text-gray-500 text-sm mt-1">
+            {searchTerm ? 'Try adjusting your search filters' : 'All verifications have been processed'}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredVerifications.map((verification) => (
+            <div key={verification._id} className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-300 transition-all overflow-hidden p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                {/* User Info + Document */}
+                <div className="flex-1">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center font-bold text-blue-600 flex-shrink-0">
+                      {verification.firstName?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900">
                           {verification.firstName} {verification.lastName}
                         </h3>
-                        <p className="text-sm text-gray-600 truncate">{verification.email}</p>
-                        <p className="text-xs text-gray-500 mt-1">@{verification.username}</p>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                          <span className="px-2 py-1 bg-gray-100 rounded">
-                            {verification.userType || 'Student'}
-                          </span>
-                          {verification.studentIdUploadedAt && (
-                            <span className="flex items-center gap-1">
-                              <FileIcon className="w-3 h-3" />
-                              Uploaded {new Date(verification.studentIdUploadedAt).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
+                        <Badge className={`text-xs ${
+                          verification.userType === 'vendor' 
+                            ? 'bg-purple-100 text-purple-700 border-purple-300' 
+                            : 'bg-blue-100 text-blue-700 border-blue-300'
+                        }`}>
+                          {verification.userType === 'vendor' ? '🏪 Vendor' : '🎓 Student'}
+                        </Badge>
                       </div>
+                      <p className="text-xs text-gray-600 mt-0.5">@{verification.username}</p>
+                      <a href={`mailto:${verification.email}`} className="text-xs text-blue-600 hover:underline mt-1">
+                        {verification.email}
+                      </a>
+                      
+                      {/* Document Info - Enhanced in Document View */}
+                      {documentView && verification.verificationDocument && (
+                        <div className="mt-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileIcon className="w-4 h-4 text-blue-600" />
+                            <p className="font-medium text-blue-900 text-sm">
+                              {formatDocumentType(verification.verificationDocument.documentType)}
+                            </p>
+                          </div>
+                          <p className="text-blue-700 text-xs font-mono">{verification.verificationDocument.documentFileName}</p>
+                          <p className="text-blue-600 text-xs mt-1">📦 {formatFileSize(verification.verificationDocument.documentSize)}</p>
+                          <p className="text-blue-600 text-xs mt-1">📅 {new Date(verification.verificationDocument.uploadedAt).toLocaleDateString()}</p>
+                        </div>
+                      )}
+                      
+                      {/* Document Info - Compact in User View */}
+                      {!documentView && verification.studentIdUploadedAt && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          📄 Uploaded {new Date(verification.studentIdUploadedAt).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   </div>
+                </div>
 
-                  {/* Middle Section - Status & Document Details */}
-                  <div className="flex flex-col items-start md:items-center gap-3 flex-1">
-                    <div>
-                      {getStatusBadge(verification.status)}
-                    </div>
+                {/* Status & Actions */}
+                <div className="flex flex-col sm:items-end gap-3">
+                  <div>
+                    {getStatusBadge(verification.status)}
+                  </div>
+                  
+                  <div className="flex gap-2 flex-wrap sm:flex-nowrap justify-start sm:justify-end">
                     {verification.verificationDocument && (
-                      <div className="bg-blue-50 rounded-lg p-3 w-full md:w-auto">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FileCheckIcon className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm font-medium text-blue-900">
-                            {formatDocumentType(verification.verificationDocument.documentType)}
-                          </span>
-                        </div>
-                        <div className="text-xs text-blue-700 space-y-1">
-                          <p>📄 {verification.verificationDocument.documentFileName}</p>
-                          <p>📊 {formatFileSize(verification.verificationDocument.documentSize)}</p>
-                          <p>📅 {new Date(verification.verificationDocument.uploadedAt).toLocaleDateString()}</p>
-                        </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleViewDocument(verification.verificationDocument!)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                      >
+                        <Eye className="w-3 h-3 mr-1" />
+                        View Doc
+                      </Button>
+                    )}
+                    {verification.status === 'pending' && (
+                      <>
                         <Button
                           size="sm"
-                          onClick={() => handleViewDocument(verification.verificationDocument!)}
-                          className="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                          onClick={() => handleApproveVerification(
+                            verification._id,
+                            `${verification.firstName} ${verification.lastName}`,
+                            verification.type || verification.userType || 'student'
+                          )}
+                          disabled={processingId === verification._id}
+                          className="bg-green-600 hover:bg-green-700 text-white text-xs"
                         >
-                          <FileIcon className="w-3 h-3 mr-1" />
-                          Check Document
+                          {processingId === verification._id ? '⏳' : '✅'} {!processingId ? 'Approve' : 'Approving...'}
                         </Button>
-                      </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleRejectVerification(
+                            verification._id,
+                            `${verification.firstName} ${verification.lastName}`,
+                            verification.type || verification.userType || 'student'
+                          )}
+                          disabled={processingId === verification._id}
+                          className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                        >
+                          {processingId === verification._id ? '⏳' : '❌'} {!processingId ? 'Reject' : 'Rejecting...'}
+                        </Button>
+                      </>
                     )}
                   </div>
-
-                  {/* Right Section - Actions */}
-                  {verification.status === 'pending' && (
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleApproveVerification(
-                          verification._id,
-                          `${verification.firstName} ${verification.lastName}`
-                        )}
-                        disabled={processingId === verification._id}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        {processingId === verification._id ? 'Approving...' : '✅ Approve'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => handleRejectVerification(
-                          verification._id,
-                          `${verification.firstName} ${verification.lastName}`
-                        )}
-                        disabled={processingId === verification._id}
-                        className="bg-red-600 hover:bg-red-700 text-white"
-                      >
-                        {processingId === verification._id ? 'Rejecting...' : '❌ Reject'}
-                      </Button>
-                    </div>
-                  )}
                 </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Document Details Modal */}
       {showDocumentModal && selectedDocument && (
@@ -585,7 +705,7 @@ export function AdminVerifications() {
                 <p className="text-sm font-medium text-gray-900 mb-3">📸 Document Preview</p>
                 {selectedDocument.mimeType.startsWith('image/') ? (
                   <img
-                    src={`http://localhost:5000${selectedDocument.documentPath}`}
+                    src={selectedDocument.documentPath}
                     alt="Document Preview"
                     className="w-full h-auto max-h-96 object-cover rounded-lg border"
                   />
@@ -594,7 +714,7 @@ export function AdminVerifications() {
                     <FileIcon className="w-16 h-16 text-gray-400 mx-auto mb-3" />
                     <p className="text-gray-600">PDF Document</p>
                     <a
-                      href={`http://localhost:5000${selectedDocument.documentPath}`}
+                      href={selectedDocument.documentPath}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-3 inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium"
@@ -608,7 +728,7 @@ export function AdminVerifications() {
                     <FileIcon className="w-16 h-16 text-gray-400 mx-auto mb-3" />
                     <p className="text-gray-600">Preview not available</p>
                     <a
-                      href={`http://localhost:5000${selectedDocument.documentPath}`}
+                      href={selectedDocument.documentPath}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-3 inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-medium"
@@ -629,7 +749,7 @@ export function AdminVerifications() {
                   Close
                 </Button>
                 <a
-                  href={`http://localhost:5000${selectedDocument.documentPath}`}
+                  href={selectedDocument.documentPath}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2"

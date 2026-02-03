@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuthStore } from '../stores/authStore'
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { login } = useAuthStore()
+  const isVendor = location.pathname.includes('vendor')
+  const userRole = isVendor ? 'vendor' : 'student'
+  
   const [showPassword, setShowPassword] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [formData, setFormData] = useState({
@@ -35,43 +41,51 @@ export function LoginPage() {
     setError('')
     setIsLoading(true)
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500))
+    try {
+      if (!formData.email || !formData.password) {
+        setError('Please fill in all fields')
+        setIsLoading(false)
+        return
+      }
 
-    // Mock authentication
-    if (formData.email && formData.password) {
-      console.log('Login submitted:', formData)
-      // Replace with actual login logic
-      navigate('/dashboard')
-    } else {
-      setError('Please fill in all fields')
+      const success = await login(formData.email, formData.password, userRole as any)
+      
+      if (success) {
+        // Redirect based on role
+        navigate(isVendor ? '/vendor/dashboard' : '/dashboard')
+      } else {
+        setError('Invalid email or password')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please try again.')
+      console.error('Login error:', err)
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   return (
-    <div className={`w-full h-full min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
-      <div className="text-center mb-12">
-        <h2 className="text-5xl md:text-6xl font-bold text-white mb-4">Welcome Back!</h2>
-        <p className="text-lg md:text-xl text-gray-300 opacity-90">Access your account and continue your journey</p>
+    <div className={`w-full h-full min-h-screen bg-slate-900 flex flex-col items-center justify-center p-3 sm:p-4 transition-opacity duration-300 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+      <div className="text-center mb-8 sm:mb-12 px-2">
+        <h2 className="text-3xl sm:text-5xl md:text-6xl font-bold text-white mb-2 sm:mb-4">Welcome Back!</h2>
+        <p className="text-base sm:text-lg md:text-xl text-gray-300 opacity-90">Access your account and continue your journey</p>
       </div>
       <div className={`w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-visible transition-all duration-300 ${isTransitioning ? 'scale-95 opacity-0' : 'scale-100 opacity-100'}`}>
         <div className="relative">
-          <div className="absolute top-6 left-6 z-10">
+          <div className="absolute top-4 sm:top-6 left-4 sm:left-6 z-10">
             <button
               onClick={() => {
                 setIsTransitioning(true)
                 setTimeout(() => navigate('/'), 300)
               }}
-              className="w-10 h-10 bg-black/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/30 transition-all"
+              className="w-9 h-9 sm:w-10 sm:h-10 bg-black/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-black/30 transition-all flex-shrink-0"
             >
-              <ArrowLeft className="w-5 h-5 text-white" />
+              <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </button>
           </div>
 
-          <div className="pt-16 px-4 md:px-8 text-center">
-            <p className="text-sm md:text-base text-gray-600">
+          <div className="pt-12 sm:pt-16 px-3 sm:px-4 md:px-8 text-center">
+            <p className="text-xs sm:text-sm md:text-base text-gray-600">
               Don't have an account?{' '}
               <button 
                 type="button"
@@ -88,11 +102,11 @@ export function LoginPage() {
         </div>
 
         {/* Login Form Panel */}
-        <div className="p-4 md:p-8 flex flex-col justify-center">
-          <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+        <div className="p-4 sm:p-6 md:p-8 flex flex-col justify-center">
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4 md:space-y-6">
             {/* Email Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                 Email Address
               </label>
               <input
@@ -102,14 +116,14 @@ export function LoginPage() {
                 value={formData.email}
                 onChange={handleInputChange}
                 placeholder="your.email@example.com"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 required
               />
             </div>
 
             {/* Password Field */}
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                 Password
               </label>
               <div className="relative">
@@ -120,35 +134,35 @@ export function LoginPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   placeholder="Enter your password"
-                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                  className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-10 sm:pr-12 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
                 >
                   {showPassword ? (
-                    <EyeOff className="w-5 h-5 text-gray-500" />
+                    <EyeOff className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                   ) : (
-                    <Eye className="w-5 h-5 text-gray-500" />
+                    <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                   )}
                 </button>
               </div>
             </div>
 
             {/* Remember Me & Forgot Password */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
                   id="rememberMe"
                   name="rememberMe"
                   checked={formData.rememberMe}
                   onChange={handleInputChange}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                 />
-                <label htmlFor="rememberMe" className="text-sm text-gray-600">
+                <label htmlFor="rememberMe" className="text-xs sm:text-sm text-gray-600 cursor-pointer">
                   Remember me
                 </label>
               </div>
@@ -158,7 +172,7 @@ export function LoginPage() {
                   setIsTransitioning(true)
                   setTimeout(() => navigate('/forgot-password'), 300)
                 }}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-xs sm:text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 Forgot password?
               </button>
@@ -166,8 +180,8 @@ export function LoginPage() {
 
             {/* Error Message */}
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{error}</p>
+              <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs sm:text-sm text-red-600">{error}</p>
               </div>
             )}
 
@@ -175,17 +189,17 @@ export function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-black text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-black text-white py-2 sm:py-3 px-4 text-sm sm:text-base rounded-xl font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Logging in...' : 'Log In'}
             </button>
 
             {/* Divider */}
-            <div className="relative my-6">
+            <div className="relative my-4 sm:my-6">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-300"></div>
               </div>
-              <div className="relative flex justify-center text-sm">
+              <div className="relative flex justify-center text-xs sm:text-sm">
                 <span className="px-2 bg-white text-gray-500">Or continue with</span>
               </div>
             </div>
@@ -197,7 +211,7 @@ export function LoginPage() {
                 e.preventDefault()
                 console.log('Google sign-in not yet implemented')
               }}
-              className="w-full border border-gray-300 bg-white text-gray-700 py-3 px-4 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              className="w-full border border-gray-300 bg-white text-gray-700 py-2 sm:py-3 px-4 text-sm sm:text-base rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

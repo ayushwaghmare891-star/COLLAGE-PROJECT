@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { TagIcon, ClockIcon, CopyIcon, CheckIcon, FilterIcon, SparklesIcon, HeartIcon, CheckCircleIcon, RefreshCwIcon } from 'lucide-react';
+import { TagIcon, ClockIcon, FilterIcon, SparklesIcon, HeartIcon, CheckCircleIcon, RefreshCwIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { DiscountDrawer } from '../DiscountDrawer';
 import { useToast } from '../../hooks/use-toast';

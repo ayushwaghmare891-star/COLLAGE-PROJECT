@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
-import { Progress } from '../ui/progress';
 import { Badge } from '../ui/badge';
 
-import { ShieldCheckIcon, TagIcon, TrendingUpIcon, ClockIcon, SparklesIcon, SearchIcon, MapPinIcon, HeartIcon, FilterIcon, RefreshCwIcon } from 'lucide-react';
+import { ShieldCheckIcon, TagIcon, TrendingUpIcon, ClockIcon, SparklesIcon, SearchIcon, MapPinIcon, HeartIcon, RefreshCwIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { useAuthStore } from '../../stores/authStore';
 import { fetchAllActiveOffers } from '../../lib/offerAPI';

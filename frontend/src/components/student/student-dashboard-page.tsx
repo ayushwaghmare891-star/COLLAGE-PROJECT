@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StudentSidebar } from './dashboard/sidebar';
 import { StudentTopNav } from './dashboard/top-nav';
 import { DashboardHeader } from './dashboard-header';
@@ -8,8 +8,9 @@ import { DiscountListingCard } from './discount-listing-card';
 import { MyCoupons } from './my-coupons';
 import { SavedOffers } from './saved-offers';
 import { NotificationsPanel } from './notifications-panel';
-import { ProfileVerification } from './profile-verification';
 import { HelpSupport } from './help-support';
+import { getStudentDiscounts, getActiveCoupons } from '../../lib/studentAPI';
+import { useAuthStore } from '../../stores/authStore';
 
 // Mock data types
 interface Discount {
@@ -65,98 +66,6 @@ interface StudentProfile {
   profileImage?: string;
 }
 
-// Mock discount data
-const mockDiscounts: Discount[] = [
-  {
-    id: '1',
-    brandName: 'Dominos',
-    category: 'Food',
-    discount: 30,
-    expiryDate: '31 Mar, 2026',
-    description: 'Flat 30% off on all food orders with student ID',
-    isExclusive: true,
-  },
-  {
-    id: '2',
-    brandName: 'Amazon',
-    category: 'Electronics',
-    discount: 25,
-    expiryDate: '30 Apr, 2026',
-    description: 'Special student discount on electronics and gadgets',
-    isLimitedTime: true,
-  },
-  {
-    id: '3',
-    brandName: 'Myntra',
-    category: 'Fashion',
-    discount: 40,
-    expiryDate: '15 May, 2026',
-    description: 'Latest fashion collection with extra student discount',
-  },
-  {
-    id: '4',
-    brandName: 'Udemy',
-    category: 'Education',
-    discount: 50,
-    expiryDate: '31 Dec, 2026',
-    description: 'Top-rated online courses for skill enhancement',
-    isExclusive: true,
-  },
-  {
-    id: '5',
-    brandName: 'MakeMyTrip',
-    category: 'Travel',
-    discount: 35,
-    expiryDate: '30 Jun, 2026',
-    description: 'Book flights and hotels with student discounts',
-    isLimitedTime: true,
-  },
-  {
-    id: '6',
-    brandName: 'Spotify',
-    category: 'Subscriptions',
-    discount: 50,
-    expiryDate: '31 Dec, 2026',
-    description: 'Premium music subscription at student rates',
-  },
-];
-
-// Mock coupons
-const mockCoupons: Coupon[] = [
-  {
-    id: '1',
-    code: 'STUDENT30FOOD',
-    brand: 'Dominos',
-    discount: 30,
-    expiryDate: '31 Mar, 2026',
-    status: 'unused',
-    claimedDate: '10 Jan, 2026',
-  },
-  {
-    id: '2',
-    code: 'AMAZON25TECH',
-    brand: 'Amazon',
-    discount: 25,
-    expiryDate: '30 Apr, 2026',
-    status: 'used',
-    claimedDate: '05 Jan, 2026',
-    usageDate: '08 Jan, 2026',
-  },
-];
-
-// Mock saved offers
-const mockSavedOffers: SavedOffer[] = [
-  {
-    id: '1',
-    brandName: 'Myntra',
-    discount: 40,
-    category: 'Fashion',
-    expiryDate: '15 May, 2026',
-    description: 'Latest fashion collection',
-    savedDate: '08 Jan, 2026',
-  },
-];
-
 // Mock notifications
 const mockNotifications: Notification[] = [
   {
@@ -182,19 +91,89 @@ export function StudentDashboardPage() {
     'overview' | 'all-discounts' | 'categories' | 'my-coupons' | 'saved' | 'notifications' | 'profile' | 'help-support'
   >('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [savedOfferIds, setSavedOfferIds] = useState<Set<string>>(new Set(['1']));
+  const [savedOfferIds, setSavedOfferIds] = useState<Set<string>>(new Set());
   const [notifications, setNotifications] = useState(mockNotifications);
+  const [discounts, setDiscounts] = useState<Discount[]>([]);
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [savedOffers, setSavedOffers] = useState<SavedOffer[]>([]);
+  const [totalSaved, setTotalSaved] = useState(0);
+  const { token, user } = useAuthStore();
 
   const studentProfile: StudentProfile = {
-    name: 'Alex Johnson',
-    email: 'alex.johnson@university.edu',
+    name: user?.name || 'Student',
+    email: user?.email || 'student@university.edu',
     phone: '+91 9876543210',
     college: 'Tech Institute of India',
     course: 'B.Tech Computer Science',
     yearOfStudy: '3rd',
     studentId: 'STU-2024-001234',
     verificationStatus: 'verified',
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchDiscounts();
+      fetchCoupons();
+      fetchSavedOffers();
+    }
+  }, [token]);
+
+  const fetchDiscounts = async () => {
+    try {
+      const response = await getStudentDiscounts();
+      if (response.offers) {
+        setDiscounts(response.offers);
+      }
+    } catch (err) {
+      console.error('Error fetching discounts:', err);
+      setDiscounts([]);
+    }
+  };
+
+  const fetchCoupons = async () => {
+    try {
+      const response = await getActiveCoupons();
+      if (response.coupons) {
+        setCoupons(response.coupons);
+      }
+    } catch (err) {
+      console.error('Error fetching coupons:', err);
+      setCoupons([]);
+    }
+  };
+
+  const fetchSavedOffers = async () => {
+    try {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('http://localhost:5000/api/student/offers/saved', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const offers = Array.isArray(data) ? data : data.offers || [];
+        setSavedOffers(offers);
+        
+        // Calculate total saved amount
+        const total = offers.reduce((sum: number, offer: any) => {
+          return sum + (offer.discountPercentage || offer.discount || 0);
+        }, 0) * 100; // Approximate savings calculation
+        setTotalSaved(total);
+        
+        // Set saved offer IDs
+        const savedIds = new Set<string>(offers.map((o: any) => (o._id || o.id) as string));
+        setSavedOfferIds(savedIds);
+      }
+    } catch (err) {
+      console.error('Error fetching saved offers:', err);
+      setSavedOffers([]);
+    }
   };
 
   const handleSaveOffer = (id: string) => {
@@ -230,15 +209,15 @@ export function StudentDashboardPage() {
             />
 
             <AnalyticsSummary
-              activeDiscounts={mockDiscounts.length}
-              totalSaved={2485}
-              couponsClaimed={15}
-              activeCoupons={mockCoupons.filter((c) => c.status === 'unused').length}
+              activeDiscounts={discounts.length}
+              totalSaved={totalSaved}
+              couponsClaimed={coupons.filter((c) => c.status === 'used').length}
+              activeCoupons={coupons.filter((c) => c.status === 'unused').length}
             />
 
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Featured Discounts</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mockDiscounts.slice(0, 3).map((discount) => (
+              {discounts.slice(0, 3).map((discount) => (
                 <DiscountListingCard
                   key={discount.id}
                   {...discount}
@@ -257,7 +236,7 @@ export function StudentDashboardPage() {
             <AdvancedSearch onSearch={() => {}} onFilterChange={() => {}} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mockDiscounts.map((discount) => (
+              {discounts.map((discount) => (
                 <DiscountListingCard
                   key={discount.id}
                   {...discount}
@@ -273,7 +252,7 @@ export function StudentDashboardPage() {
         return (
           <>
             <h1 className="text-3xl font-bold text-gray-900 mb-6">My Coupons</h1>
-            <MyCoupons coupons={mockCoupons} />
+            <MyCoupons coupons={coupons} />
           </>
         )
       case 'saved':
@@ -281,7 +260,15 @@ export function StudentDashboardPage() {
           <>
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Saved Offers</h1>
             <SavedOffers
-              offers={mockSavedOffers}
+              offers={savedOffers.map((offer: any) => ({
+                id: offer._id || offer.id,
+                brandName: offer.vendor?.businessName || offer.vendor?.name || offer.brandName || 'Brand',
+                discount: offer.discountPercentage || offer.discount || 0,
+                category: offer.category || 'General',
+                expiryDate: offer.endDate ? new Date(offer.endDate).toLocaleDateString('en-GB') : 'No expiry',
+                description: offer.description || 'Special discount offer',
+                savedDate: new Date().toLocaleDateString('en-GB'),
+              }))}
               onRemove={(id) => setSavedOfferIds(new Set([...savedOfferIds].filter((x) => x !== id)))}
             />
           </>
@@ -310,7 +297,6 @@ export function StudentDashboardPage() {
                   <p className="text-gray-600">{studentProfile.email}</p>
                 </div>
                 <button
-                  onClick={() => setShowProfileModal(true)}
                   className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg transition-all duration-200 font-medium"
                 >
                   Edit Profile
@@ -346,7 +332,7 @@ export function StudentDashboardPage() {
             <AdvancedSearch onSearch={() => {}} onFilterChange={() => {}} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mockDiscounts.map((discount) => (
+              {discounts.map((discount) => (
                 <DiscountListingCard
                   key={discount.id}
                   {...discount}
@@ -387,17 +373,7 @@ export function StudentDashboardPage() {
         </main>
       </div>
 
-      {/* Profile Modal */}
-      {showProfileModal && (
-        <ProfileVerification
-          profile={studentProfile}
-          onClose={() => setShowProfileModal(false)}
-          onUpdate={(updatedProfile) => {
-            console.log('Profile updated:', updatedProfile);
-            setShowProfileModal(false);
-          }}
-        />
-      )}
+      {/* Profile Modal removed */}
     </div>
   );
 }

@@ -14,21 +14,6 @@ export interface OfferData {
   code?: string;
 }
 
-// Fetch vendor's own offers
-export const fetchVendorOffers = async () => {
-  const response = await fetch(`${API_BASE_URL}/offers/my-offers`, {
-    method: 'GET',
-    headers: getHeaders(),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to fetch offers');
-  }
-
-  return response.json();
-};
-
 // Fetch all active offers (for students/admins)
 export const fetchAllActiveOffers = async (category?: string, search?: string) => {
   try {

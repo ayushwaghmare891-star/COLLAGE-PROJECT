@@ -5,7 +5,6 @@ import { Badge } from '../ui/badge';
 import { 
   UsersIcon, 
   UserIcon, 
-  ShoppingBagIcon, 
   ShieldIcon, 
   TrashIcon,
   SearchIcon
@@ -19,7 +18,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'user' | 'student' | 'vendor' | 'admin';
+  role: 'user' | 'student' | 'admin';
   status: 'active' | 'inactive' | 'suspended';
   createdAt: string;
 }
@@ -57,9 +56,9 @@ export function AdminUserManagement() {
     }
   };
 
-  const handleChangeRole = async (userId: string, newRole: 'user' | 'student' | 'vendor' | 'admin') => {
+  const handleChangeRole = async (userId: string, newRole: 'user' | 'student' | 'admin') => {
     try {
-      const response = await updateUserRole(userId, newRole);
+      await updateUserRole(userId, newRole);
       toast({
         title: 'Role updated',
         description: `User role changed to ${newRole}`,
@@ -92,21 +91,11 @@ export function AdminUserManagement() {
       });
     }
   };
-    } catch (error: any) {
-      toast({
-        title: 'Error deleting user',
-        description: error.message,
-        variant: 'destructive',
-      });
-    }
-  };
 
   const getRoleIcon = (role: string) => {
     switch (role) {
       case 'admin':
         return ShieldIcon;
-      case 'vendor':
-        return ShoppingBagIcon;
       case 'student':
         return UsersIcon;
       default:
@@ -118,8 +107,6 @@ export function AdminUserManagement() {
     switch (role) {
       case 'admin':
         return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'vendor':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       case 'student':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       default:
@@ -182,7 +169,6 @@ export function AdminUserManagement() {
               <option value="all">All Roles</option>
               <option value="user">User</option>
               <option value="student">Student</option>
-              <option value="vendor">Vendor</option>
               <option value="admin">Admin</option>
             </select>
           </div>
@@ -248,7 +234,6 @@ export function AdminUserManagement() {
                             >
                               <option value="user">User</option>
                               <option value="student">Student</option>
-                              <option value="vendor">Vendor</option>
                               <option value="admin">Admin</option>
                             </select>
                             <Button

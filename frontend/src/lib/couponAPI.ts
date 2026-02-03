@@ -2,15 +2,6 @@ import { API_BASE_URL, getHeaders } from './api';
 
 const COUPON_API_BASE = `${API_BASE_URL}/coupons`;
 
-// Get vendor's coupons
-export const getVendorCoupons = async () => {
-  const response = await fetch(`${COUPON_API_BASE}/my-coupons`, {
-    headers: getHeaders(),
-  });
-  if (!response.ok) throw new Error('Failed to fetch coupons');
-  return response.json();
-};
-
 // Create a new coupon
 export const createCoupon = async (couponData: any) => {
   const response = await fetch(`${COUPON_API_BASE}/create`, {
@@ -69,5 +60,14 @@ export const getCouponStats = async () => {
     headers: getHeaders(),
   });
   if (!response.ok) throw new Error('Failed to fetch coupon statistics');
+  return response.json();
+};
+
+// Get redemption details for a specific coupon
+export const getCouponRedemptions = async (couponId: string) => {
+  const response = await fetch(`${COUPON_API_BASE}/${couponId}/redemptions`, {
+    headers: getHeaders(),
+  });
+  if (!response.ok) throw new Error('Failed to fetch coupon redemptions');
   return response.json();
 };

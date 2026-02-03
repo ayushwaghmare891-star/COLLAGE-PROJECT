@@ -1,14 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { Eye, EyeOff, Upload, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../stores/authStore'
+import { useToast } from '../../hooks/use-toast'
 
 export function StudentSignupPage() {
   const navigate = useNavigate()
+  const { signup } = useAuthStore()
+  const { toast } = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [verificationStep, setVerificationStep] = useState<'form' | 'verification'>('form')
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     // Basic Information
     fullName: '',
@@ -36,7 +40,6 @@ export function StudentSignupPage() {
   })
 
   const [studentIdFile, setStudentIdFile] = useState<File | null>(null)
-  const [verificationMethod, setVerificationMethod] = useState<'email' | 'otp'>('email')
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -60,84 +63,108 @@ export function StudentSignupPage() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (verificationStep === 'form') {
-      setVerificationStep('verification')
-    } else {
-      console.log('Student Registration submitted:', formData)
-      navigate('/student/dashboard')
+    
+    // Validate all required fields
+    if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
+      toast({
+        title: "❌ Missing fields",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
     }
-  }
 
-  if (verificationStep === 'verification') {
-    return (
-      <div className="w-full min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4 py-8">
-        <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
-          {/* Verification Panel */}
-          <div className="p-6 md:p-8 flex flex-col justify-center">
-            <div className="text-center">
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Almost There!</h1>
-              <p className="text-gray-600 mb-6">Verify your account to access student discounts</p>
+    if (formData.password !== formData.confirmPassword) {
+      toast({
+        title: "❌ Passwords don't match",
+        description: "Please make sure your passwords match",
+        variant: "destructive",
+      })
+      return
+    }
 
-              <div className="space-y-4">
-                {verificationMethod === 'email' ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <h2 className="font-semibold text-gray-900 mb-2">Email Verification</h2>
-                    <p className="text-sm text-gray-700 mb-4">
-                      We've sent a verification link to <span className="font-semibold">{formData.email}</span>
-                    </p>
-                    <p className="text-xs text-gray-600 mb-4">Please check your email and click the verification link to activate your account.</p>
-                    <button
-                      type="button"
-                      onClick={() => setVerificationMethod('otp')}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      Verify with OTP instead
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                    <h2 className="font-semibold text-gray-900 mb-2">OTP Verification</h2>
-                    <p className="text-sm text-gray-700 mb-4">
-                      We've sent a 6-digit OTP to <span className="font-semibold">{formData.mobileNumber}</span>
-                    </p>
-                    <input
-                      type="text"
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-center text-lg tracking-widest mb-4"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setVerificationMethod('email')}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                    >
-                      Use email verification instead
-                    </button>
-                  </div>
-                )}
+    if (formData.password.length < 6) {
+      toast({
+        title: "❌ Weak password",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      })
+      return
+    }
 
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <p className="text-xs text-amber-900">
-                    <span className="font-semibold">ℹ️ Admin Approval:</span> Your student status will be verified by our admin team within 24 hours.
-                  </p>
-                </div>
+    if (!formData.isStudent) {
+      toast({
+        title: "❌ Confirmation required",
+        description: "Please confirm that you are a student",
+        variant: "destructive",
+      })
+      return
+    }
 
-                <button
-                  type="button"
-                  onClick={() => navigate('/student/login')}
-                  className="w-full bg-black text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
-                >
-                  Back to Login
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    if (!formData.agreeToTerms || !formData.agreeToPrivacy) {
+      toast({
+        title: "❌ Terms required",
+        description: "Please agree to terms and privacy policy",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!studentIdFile) {
+      toast({
+        title: "❌ Student ID required",
+        description: "Please upload your student ID card",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const success = await signup(
+        formData.email,
+        formData.password,
+        formData.fullName,
+        'student',
+        {
+          collegeName: formData.collegeName,
+          courseName: formData.courseName,
+          yearOfStudy: formData.yearOfStudy,
+          enrollmentNumber: formData.enrollmentNumber,
+          studentId: formData.studentId,
+          collegeEmailId: formData.collegeEmailId,
+          city: formData.city,
+          state: formData.state,
+          mobileNumber: formData.mobileNumber,
+        }
+      )
+
+      if (success) {
+        toast({
+          title: "✅ Account created successfully!",
+          description: "Redirecting to login...",
+        })
+        navigate('/student/login')
+      } else {
+        toast({
+          title: "❌ Signup failed",
+          description: "Please try again",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Signup failed. Please try again.'
+      toast({
+        title: "❌ Signup error",
+        description: errorMsg,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -513,9 +540,10 @@ export function StudentSignupPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-black text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+              disabled={isLoading}
+              className="w-full bg-black text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account & Verify
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
         </div>

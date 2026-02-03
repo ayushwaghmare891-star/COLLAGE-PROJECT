@@ -1,16 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StudentSidebar } from './dashboard/sidebar';
 import { StudentTopNav } from './dashboard/top-nav';
 import { AdvancedSearch } from './advanced-search';
 import { DiscountListingCard } from './discount-listing-card';
+import { useAuthStore } from '../../stores/authStore';
 
 interface Discount {
-  id: string;
-  brandName: string;
-  discount: number;
-  description: string;
-  expiryDate: string;
-  category: string;
+  _id: string;
+  id?: string;
+  title?: string;
+  brandName?: string;
+  vendor?: {
+    name: string;
+    businessName: string;
+  };
+  discount?: number;
+  discountPercentage?: number;
+  description?: string;
+  expiryDate?: string;
+  endDate?: string;
+  category?: string;
+  isActive?: boolean;
   isExclusive?: boolean;
   isLimitedTime?: boolean;
 }
@@ -26,68 +36,18 @@ interface StudentProfile {
   verificationStatus: 'verified' | 'pending' | 'rejected';
 }
 
-// Mock discounts data
-const mockDiscounts: Discount[] = [
-  {
-    id: '1',
-    brandName: 'Zomato',
-    category: 'Food & Dining',
-    discount: 50,
-    expiryDate: '31 Mar, 2026',
-    description: 'Get 50% off on food orders above ₹300',
-    isExclusive: true,
-  },
-  {
-    id: '2',
-    brandName: 'Myntra',
-    category: 'Fashion',
-    discount: 40,
-    expiryDate: '15 May, 2026',
-    description: 'Flat 40% discount on all clothing and accessories',
-  },
-  {
-    id: '3',
-    brandName: 'Amazon',
-    category: 'E-Commerce',
-    discount: 25,
-    expiryDate: '30 Apr, 2026',
-    description: 'Student Prime membership with exclusive deals',
-  },
-  {
-    id: '4',
-    brandName: 'Udemy',
-    category: 'Education',
-    discount: 50,
-    expiryDate: '31 Dec, 2026',
-    description: 'Top-rated online courses for skill enhancement',
-    isExclusive: true,
-  },
-  {
-    id: '5',
-    brandName: 'MakeMyTrip',
-    category: 'Travel',
-    discount: 35,
-    expiryDate: '30 Jun, 2026',
-    description: 'Book flights and hotels with student discounts',
-    isLimitedTime: true,
-  },
-  {
-    id: '6',
-    brandName: 'Spotify',
-    category: 'Subscriptions',
-    discount: 50,
-    expiryDate: '31 Dec, 2026',
-    description: 'Premium music subscription at student rates',
-  },
-];
-
 export function StudentDiscountPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [savedOfferIds, setSavedOfferIds] = useState<Set<string>>(new Set(['1']));
+  const [savedOfferIds, setSavedOfferIds] = useState<Set<string>>(new Set());
+  const [discounts, setDiscounts] = useState<Discount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const { user } = useAuthStore();
 
   const studentProfile: StudentProfile = {
-    name: 'Alex Johnson',
-    email: 'alex.johnson@university.edu',
+    name: user?.name || 'Student',
+    email: user?.email || 'student@university.edu',
     phone: '+91 9876543210',
     college: 'Tech Institute of India',
     course: 'B.Tech Computer Science',
@@ -95,6 +55,52 @@ export function StudentDiscountPage() {
     studentId: 'STU-2024-001234',
     verificationStatus: 'verified',
   };
+
+  // Fetch real discounts from API
+  useEffect(() => {
+    const fetchDiscounts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/offers/active`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+          throw new Error('Failed to fetch discounts');
+        }
+        const data = await response.json();
+        // Transform API response to match component's Discount interface
+        const transformedData = data.map((offer: any) => ({
+          _id: offer._id,
+          id: offer._id,
+          title: offer.title,
+          brandName: offer.vendor?.businessName || offer.vendor?.name || 'Brand',
+          discount: offer.discountPercentage || offer.discount || 0,
+          description: offer.description,
+          expiryDate: offer.endDate ? new Date(offer.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'No expiry',
+          category: offer.category || 'General',
+          isActive: offer.isActive !== false,
+          isExclusive: offer.isExclusive || false,
+          isLimitedTime: offer.isLimitedTime || false,
+        }));
+        setDiscounts(transformedData);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          setError('Request timeout - please try again');
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load discounts');
+        }
+        setDiscounts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDiscounts();
+  }, []);
 
   const handleSaveOffer = (id: string) => {
     const newSaved = new Set(savedOfferIds);
@@ -134,17 +140,47 @@ export function StudentDiscountPage() {
             <h1 className="text-3xl font-bold text-gray-900 mb-4">All Discounts</h1>
             <AdvancedSearch onSearch={() => {}} onFilterChange={() => {}} />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mockDiscounts.map((discount) => (
-                <DiscountListingCard
-                  key={discount.id}
-                  {...discount}
-                  isSaved={savedOfferIds.has(discount.id)}
-                  onSave={handleSaveOffer}
-                  onClaim={handleClaimDiscount}
-                />
-              ))}
-            </div>
+            {loading && (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading discounts...</p>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <p className="text-red-800">{error}</p>
+              </div>
+            )}
+
+            {!loading && discounts.length === 0 && !error && (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">No discounts available yet. Please check back later!</p>
+              </div>
+            )}
+
+            {!loading && discounts.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {discounts.map((discount) => (
+                  <DiscountListingCard
+                    key={discount._id}
+                    id={discount._id || discount.id || ''}
+                    brandName={discount.brandName || 'Brand'}
+                    discount={discount.discount || 0}
+                    description={discount.description || ''}
+                    expiryDate={discount.expiryDate || 'No expiry'}
+                    category={discount.category || 'General'}
+                    isExclusive={discount.isExclusive}
+                    isLimitedTime={discount.isLimitedTime}
+                    isSaved={savedOfferIds.has(discount._id || '')}
+                    onSave={handleSaveOffer}
+                    onClaim={handleClaimDiscount}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </main>
       </div>

@@ -1,4 +1,5 @@
-export type UserRole = 'student' | 'vendor' | 'admin';
+// User and Authentication Types
+export type UserRole = 'student' | 'admin' | 'vendor';
 
 export interface User {
   id: string;
@@ -6,9 +7,17 @@ export interface User {
   name: string;
   role: UserRole;
   university?: string;
-  companyName?: string;
   isVerified: boolean;
   createdAt: string;
+  // Admin specific fields
+  phoneNumber?: string;
+  bio?: string;
+  profilePicture?: string;
+  permissions?: string[];
+  isActive?: boolean;
+  isSuspended?: boolean;
+  // Vendor specific fields
+  businessName?: string;
 }
 
 export interface AuthState {
@@ -17,9 +26,9 @@ export interface AuthState {
   token: string | null;
 }
 
+// Discount Types
 export interface Discount {
   id: string;
-  vendorId: string;
   brand: string;
   discount: string;
   description: string;
@@ -30,10 +39,4 @@ export interface Discount {
   code?: string;
   termsAndConditions: string;
   createdAt: string;
-}
-
-export interface VendorDiscount extends Discount {
-  usageCount: number;
-  totalViews: number;
-  isActive: boolean;
 }

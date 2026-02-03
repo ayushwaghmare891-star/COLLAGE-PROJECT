@@ -3,56 +3,45 @@
 import { useState } from 'react'
 import { Eye, EyeOff, Upload } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../stores/authStore'
+import { useToast } from '../../hooks/use-toast'
 
 export function VendorSignupPage() {
   const navigate = useNavigate()
+  const { signup } = useAuthStore()
+  const { toast } = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
-    // Business Information
-    businessName: '',
-    businessType: '',
-    businessDescription: '',
-    
-    // Contact Details
-    ownerName: '',
+    // Basic Information
+    fullName: '',
     email: '',
     mobileNumber: '',
     password: '',
     confirmPassword: '',
     
-    // Location Details
-    address: '',
+    // Business Information
+    businessName: '',
+    businessType: '',
+    businessRegistration: '',
+    gstNumber: '',
+    businessEmail: '',
+    
+    // Location
     city: '',
     state: '',
-    country: '',
-    pincode: '',
-    onlineOnly: false,
+    businessAddress: '',
     
-    // Student Discount Details
-    discountAmount: '',
-    discountType: 'percentage',
-    validityDate: '',
-    applicability: 'both',
-    
-    // Student Verification Method
-    studentVerification: 'college-id',
-    
-    // Business Verification
-    gstNumber: '',
-    
-    // Optional
-    website: '',
-    socialMedia: '',
-    
-    // Terms
+    // Confirmations
+    isBusinessOwner: false,
     agreeToTerms: false,
+    agreeToPrivacy: false,
   })
 
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [gstDocument, setGstDocument] = useState<File | null>(null)
+  const [businessLicenseFile, setBusinessLicenseFile] = useState<File | null>(null)
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked
@@ -68,35 +57,129 @@ export function VendorSignupPage() {
     }
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'logo' | 'gst') => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      if (fileType === 'logo') {
-        setLogoFile(e.target.files[0])
-      } else {
-        setGstDocument(e.target.files[0])
-      }
+      setBusinessLicenseFile(e.target.files[0])
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Vendor Registration submitted:', formData)
-    navigate('/vendor/dashboard')
+    
+    // Validate all required fields
+    if (!formData.fullName || !formData.email || !formData.password || !formData.confirmPassword) {
+      toast({
+        title: "❌ Missing fields",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      toast({
+        title: "❌ Passwords don't match",
+        description: "Please make sure your passwords match",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (formData.password.length < 6) {
+      toast({
+        title: "❌ Weak password",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!formData.isBusinessOwner) {
+      toast({
+        title: "❌ Confirmation required",
+        description: "Please confirm that you are a business owner/representative",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!formData.agreeToTerms || !formData.agreeToPrivacy) {
+      toast({
+        title: "❌ Terms required",
+        description: "Please agree to terms and privacy policy",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!businessLicenseFile) {
+      toast({
+        title: "❌ Business License required",
+        description: "Please upload your business license or registration",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const success = await signup(
+        formData.email,
+        formData.password,
+        formData.fullName,
+        'vendor',
+        {
+          businessName: formData.businessName,
+          businessType: formData.businessType,
+          businessRegistration: formData.businessRegistration,
+          gstNumber: formData.gstNumber,
+          businessEmail: formData.businessEmail,
+          city: formData.city,
+          state: formData.state,
+          businessAddress: formData.businessAddress,
+          mobileNumber: formData.mobileNumber,
+        }
+      )
+
+      if (success) {
+        toast({
+          title: "✅ Account created successfully!",
+          description: "Redirecting to login...",
+        })
+        navigate('/vendor/login')
+      } else {
+        toast({
+          title: "❌ Signup failed",
+          description: "Please try again",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Signup failed. Please try again.'
+      toast({
+        title: "❌ Signup error",
+        description: errorMsg,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4 py-8">
+    <div className="w-full min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-800 flex items-center justify-center p-4 py-8">
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
-        {/* Signup Panel */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col max-h-screen md:max-h-none overflow-y-auto">
+        {/* Form Panel */}
+        <div className="p-6 md:p-8 flex flex-col max-h-screen md:max-h-none overflow-y-auto">
           <div className="mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Register as Vendor</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Create Vendor Account</h1>
             <p className="text-sm md:text-base text-gray-600">
               Already have an account?{' '}
               <button 
                 type="button"
                 onClick={() => navigate('/vendor/login')}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-green-600 hover:text-green-700 font-medium"
               >
                 Log in
               </button>
@@ -104,124 +187,40 @@ export function VendorSignupPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Business Information Section */}
+            {/* Basic Information Section */}
             <div className="border-b pb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Business Information</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
               
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Name <span className="text-red-500">*</span>
+                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
+                    Full Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    id="businessName"
-                    name="businessName"
-                    value={formData.businessName}
+                    id="fullName"
+                    name="fullName"
+                    value={formData.fullName}
                     onChange={handleInputChange}
-                    placeholder="Your Business Name"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                    placeholder="John Doe"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="businessType" className="block text-sm font-medium text-gray-700 mb-2">
-                      Business Type <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="businessType"
-                      name="businessType"
-                      value={formData.businessType}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                      required
-                    >
-                      <option value="">Select Type</option>
-                      <option value="retail">Retail</option>
-                      <option value="food">Food & Beverage</option>
-                      <option value="education">Education</option>
-                      <option value="services">Services</option>
-                      <option value="electronics">Electronics</option>
-                      <option value="fashion">Fashion</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label htmlFor="website" className="block text-sm font-medium text-gray-700 mb-2">
-                      Website (Optional)
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                      Email Address <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="url"
-                      id="website"
-                      name="website"
-                      value={formData.website}
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
                       onChange={handleInputChange}
-                      placeholder="https://example.com"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="businessDescription" className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Description
-                  </label>
-                  <textarea
-                    id="businessDescription"
-                    name="businessDescription"
-                    value={formData.businessDescription}
-                    onChange={handleInputChange}
-                    placeholder="Describe your business..."
-                    rows={2}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Business Logo
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center cursor-pointer hover:border-blue-500 bg-gray-50 transition-colors">
-                    <label htmlFor="logo" className="cursor-pointer">
-                      <Upload className="w-6 h-6 text-gray-600 mx-auto mb-1" />
-                      <p className="text-xs font-semibold text-gray-900">Click to upload</p>
-                      <p className="text-xs text-gray-600">
-                        {logoFile ? logoFile.name : 'PNG, JPG (Max 2MB)'}
-                      </p>
-                      <input
-                        type="file"
-                        id="logo"
-                        onChange={(e) => handleFileChange(e, 'logo')}
-                        accept=".jpg,.jpeg,.png"
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Contact Details Section */}
-            <div className="border-b pb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact Details</h2>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="ownerName" className="block text-sm font-medium text-gray-700 mb-2">
-                      Owner Name <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      id="ownerName"
-                      name="ownerName"
-                      value={formData.ownerName}
-                      onChange={handleInputChange}
-                      placeholder="Full Name"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                      placeholder="your@email.com"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                       required
                     />
                   </div>
@@ -237,26 +236,10 @@ export function VendorSignupPage() {
                       value={formData.mobileNumber}
                       onChange={handleInputChange}
                       placeholder="10-digit number"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                       required
                     />
                   </div>
-                </div>
-
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="Email Address"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                    required
-                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -272,7 +255,7 @@ export function VendorSignupPage() {
                         value={formData.password}
                         onChange={handleInputChange}
                         placeholder="Password"
-                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                         required
                       />
                       <button
@@ -301,7 +284,7 @@ export function VendorSignupPage() {
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
                         placeholder="Confirm Password"
-                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
+                        className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                         required
                       />
                       <button
@@ -321,31 +304,154 @@ export function VendorSignupPage() {
               </div>
             </div>
 
-            {/* Location Details Section */}
+            {/* Business Information Section */}
             <div className="border-b pb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Location Details</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Business Information</h2>
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                ⚠️ Accurate business information is required for verification
+              </p>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="businessName" className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="businessName"
+                      name="businessName"
+                      value={formData.businessName}
+                      onChange={handleInputChange}
+                      placeholder="e.g., ABC Store"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="businessType" className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      id="businessType"
+                      name="businessType"
+                      value={formData.businessType}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
+                      required
+                    >
+                      <option value="">Select Business Type</option>
+                      <option value="retail">Retail Store</option>
+                      <option value="restaurant">Restaurant/Cafe</option>
+                      <option value="electronics">Electronics</option>
+                      <option value="fashion">Fashion</option>
+                      <option value="services">Services</option>
+                      <option value="education">Education</option>
+                      <option value="health">Health & Wellness</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="businessRegistration" className="block text-sm font-medium text-gray-700 mb-2">
+                      Business Registration Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="businessRegistration"
+                      name="businessRegistration"
+                      value={formData.businessRegistration}
+                      onChange={handleInputChange}
+                      placeholder="Enter registration number"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="gstNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                      GST Number <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      id="gstNumber"
+                      name="gstNumber"
+                      value={formData.gstNumber}
+                      onChange={handleInputChange}
+                      placeholder="e.g., 07AADCT5055K1Z0"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="businessEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                    Business Email (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    id="businessEmail"
+                    name="businessEmail"
+                    value={formData.businessEmail}
+                    onChange={handleInputChange}
+                    placeholder="business@company.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Upload Business License/Registration <span className="text-red-500">*</span>
+                  </label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center cursor-pointer hover:border-green-500 bg-gray-50 transition-colors">
+                    <label htmlFor="businessLicenseFile" className="cursor-pointer">
+                      <Upload className="w-6 h-6 text-gray-600 mx-auto mb-1" />
+                      <p className="text-xs font-semibold text-gray-900">Click to upload</p>
+                      <p className="text-xs text-gray-600">
+                        {businessLicenseFile ? businessLicenseFile.name : 'JPG, PNG, PDF (Max 5MB)'}
+                      </p>
+                      <input
+                        type="file"
+                        id="businessLicenseFile"
+                        onChange={handleFileChange}
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        className="hidden"
+                        required
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Location Section */}
+            <div className="border-b pb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Location (Optional)</h2>
               
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
-                    Address <span className="text-red-500">*</span>
+                  <label htmlFor="businessAddress" className="block text-sm font-medium text-gray-700 mb-2">
+                    Business Address
                   </label>
                   <input
                     type="text"
-                    id="address"
-                    name="address"
-                    value={formData.address}
+                    id="businessAddress"
+                    name="businessAddress"
+                    value={formData.businessAddress}
                     onChange={handleInputChange}
-                    placeholder="Street Address"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                    required
+                    placeholder="Full business address"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-2">
-                      City <span className="text-red-500">*</span>
+                      City
                     </label>
                     <input
                       type="text"
@@ -354,14 +460,13 @@ export function VendorSignupPage() {
                       value={formData.city}
                       onChange={handleInputChange}
                       placeholder="City"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                     />
                   </div>
 
                   <div>
                     <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-2">
-                      State <span className="text-red-500">*</span>
+                      State
                     </label>
                     <input
                       type="text"
@@ -370,240 +475,74 @@ export function VendorSignupPage() {
                       value={formData.state}
                       onChange={handleInputChange}
                       placeholder="State"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all text-sm"
                     />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-2">
-                      Country <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      id="country"
-                      name="country"
-                      value={formData.country}
-                      onChange={handleInputChange}
-                      placeholder="Country"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="pincode" className="block text-sm font-medium text-gray-700 mb-2">
-                      Pincode <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      id="pincode"
-                      name="pincode"
-                      value={formData.pincode}
-                      onChange={handleInputChange}
-                      placeholder="6-digit code"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="onlineOnly"
-                    name="onlineOnly"
-                    checked={formData.onlineOnly}
-                    onChange={handleInputChange}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label htmlFor="onlineOnly" className="text-sm text-gray-700">
-                    Online Store Only
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {/* Student Discount Details Section */}
-            <div className="border-b pb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Student Discount Details</h2>
-              
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700 mb-2">
-                      Discount Amount <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      id="discountAmount"
-                      name="discountAmount"
-                      value={formData.discountAmount}
-                      onChange={handleInputChange}
-                      placeholder="10"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="discountType" className="block text-sm font-medium text-gray-700 mb-2">
-                      Discount Type <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="discountType"
-                      name="discountType"
-                      value={formData.discountType}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                    >
-                      <option value="percentage">Percentage (%)</option>
-                      <option value="flat">Flat Amount (₹)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="validityDate" className="block text-sm font-medium text-gray-700 mb-2">
-                      Validity Date <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="date"
-                      id="validityDate"
-                      name="validityDate"
-                      value={formData.validityDate}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="applicability" className="block text-sm font-medium text-gray-700 mb-2">
-                      Applicability <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="applicability"
-                      name="applicability"
-                      value={formData.applicability}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                    >
-                      <option value="online">Online Only</option>
-                      <option value="offline">Offline Only</option>
-                      <option value="both">Both Online & Offline</option>
-                    </select>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Verification Sections */}
-            <div className="border-b pb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Verification Details</h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Student Verification Method <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="studentVerification"
-                    value={formData.studentVerification}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                  >
-                    <option value="college-id">College ID</option>
-                    <option value="student-email">Student Email</option>
-                    <option value="verification-platform">Verification Platform</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="gstNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                    GST/Registration Number <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    id="gstNumber"
-                    name="gstNumber"
-                    value={formData.gstNumber}
-                    onChange={handleInputChange}
-                    placeholder="GST or Business Registration Number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Upload Verification Document <span className="text-red-500">*</span>
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 text-center cursor-pointer hover:border-blue-500 bg-gray-50 transition-colors">
-                    <label htmlFor="gstDoc" className="cursor-pointer">
-                      <Upload className="w-6 h-6 text-gray-600 mx-auto mb-1" />
-                      <p className="text-xs font-semibold text-gray-900">Click to upload</p>
-                      <p className="text-xs text-gray-600">
-                        {gstDocument ? gstDocument.name : 'PDF, JPG, PNG (Max 5MB)'}
-                      </p>
-                      <input
-                        type="file"
-                        id="gstDoc"
-                        onChange={(e) => handleFileChange(e, 'gst')}
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        className="hidden"
-                        required
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="socialMedia" className="block text-sm font-medium text-gray-700 mb-2">
-                    Social Media Links (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    id="socialMedia"
-                    name="socialMedia"
-                    value={formData.socialMedia}
-                    onChange={handleInputChange}
-                    placeholder="Instagram, Facebook, Twitter links"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm"
-                  />
-                </div>
+            {/* Confirmations Section */}
+            <div className="space-y-3">
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="isBusinessOwner"
+                  name="isBusinessOwner"
+                  checked={formData.isBusinessOwner}
+                  onChange={handleInputChange}
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 mt-1"
+                  required
+                />
+                <label htmlFor="isBusinessOwner" className="text-sm text-gray-700">
+                  I confirm that I am an authorized representative/owner of this business and the information provided is accurate.
+                </label>
               </div>
-            </div>
 
-            {/* Terms & Conditions */}
-            <div className="flex items-start space-x-3">
-              <input
-                type="checkbox"
-                id="agreeToTerms"
-                name="agreeToTerms"
-                checked={formData.agreeToTerms}
-                onChange={handleInputChange}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1"
-                required
-              />
-              <label htmlFor="agreeToTerms" className="text-sm text-gray-700">
-                I agree to the{' '}
-                <button type="button" className="text-blue-600 hover:underline font-medium">
-                  Terms & Conditions
-                </button>
-                {' '}and confirm that the information provided is accurate.
-              </label>
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="agreeToTerms"
+                  name="agreeToTerms"
+                  checked={formData.agreeToTerms}
+                  onChange={handleInputChange}
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 mt-1"
+                  required
+                />
+                <label htmlFor="agreeToTerms" className="text-sm text-gray-700">
+                  I agree to the{' '}
+                  <button type="button" className="text-green-600 hover:underline font-medium">
+                    Terms & Conditions
+                  </button>
+                </label>
+              </div>
+
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="agreeToPrivacy"
+                  name="agreeToPrivacy"
+                  checked={formData.agreeToPrivacy}
+                  onChange={handleInputChange}
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500 mt-1"
+                  required
+                />
+                <label htmlFor="agreeToPrivacy" className="text-sm text-gray-700">
+                  I agree to the{' '}
+                  <button type="button" className="text-green-600 hover:underline font-medium">
+                    Privacy Policy
+                  </button>
+                </label>
+              </div>
             </div>
 
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-black text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+              disabled={isLoading}
+              className="w-full bg-black text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Register as Vendor
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
         </div>

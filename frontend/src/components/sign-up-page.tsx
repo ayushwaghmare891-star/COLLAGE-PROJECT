@@ -3,32 +3,102 @@
 import { useState } from 'react'
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuthStore } from '../stores/authStore'
 
 export function SignupPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { signup } = useAuthStore()
   const isVendor = location.pathname.includes('vendor')
+  const userRole = isVendor ? 'vendor' : 'student'
+  
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
     password: '',
     agreeToTerms: false,
+    ...(isVendor && { businessName: '', businessCategory: '' }),
   })
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target as HTMLInputElement
+    const checked = (e.target as HTMLInputElement).checked
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Signup submitted:', formData)
-    navigate('/dashboard') // replace with actual route
+    setError('')
+    setIsLoading(true)
+
+    try {
+      // Validate form
+      if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+        setError('Please fill in all required fields')
+        setIsLoading(false)
+        return
+      }
+
+      if (!formData.agreeToTerms) {
+        setError('Please agree to the Terms & Conditions')
+        setIsLoading(false)
+        return
+      }
+
+      if (formData.password.length < 6) {
+        setError('Password must be at least 6 characters')
+        setIsLoading(false)
+        return
+      }
+
+      const fullName = `${formData.firstName} ${formData.lastName}`
+      
+      const additionalInfo = isVendor 
+        ? {
+            businessName: (formData as any).businessName,
+            businessCategory: (formData as any).businessCategory,
+          }
+        : {}
+
+      console.log('📝 Sign-up form submitted:', {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        userRole,
+      });
+
+      const success = await signup(
+        formData.email,
+        formData.password,
+        fullName,
+        userRole as any,
+        additionalInfo
+      )
+
+      console.log('🔄 Signup returned:', success);
+
+      if (success) {
+        console.log('✅ Signup successful, redirecting...');
+        // Redirect to login or dashboard
+        navigate(isVendor ? '/vendor/login' : '/student/login')
+      } else {
+        console.log('❌ Signup returned false');
+        setError('Signup failed. Email might already be registered.')
+      }
+    } catch (err: any) {
+      console.error('❌ Signup error caught:', err);
+      setError(err.message || 'Signup failed. Please try again.')
+      console.error('Signup error:', err)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -146,6 +216,13 @@ export function SignupPage() {
               </div>
             </div>
 
+            {/* Error Message */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                {error}
+              </div>
+            )}
+
             {/* Terms Checkbox */}
             <div className="flex items-center space-x-3">
               <input
@@ -168,9 +245,10 @@ export function SignupPage() {
             {/* Submit Button */}
             <button
               type="submit"
-              className="w-full bg-black text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-800 transition-colors"
+              disabled={isLoading}
+              className="w-full bg-black text-white py-3 px-4 rounded-xl font-medium hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </button>
           </form>
         </div>
