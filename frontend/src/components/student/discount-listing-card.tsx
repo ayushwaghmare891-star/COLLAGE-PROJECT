@@ -13,6 +13,8 @@ interface DiscountListingCardProps {
   isExclusive?: boolean;
   isLimitedTime?: boolean;
   isSaved?: boolean;
+  isApproved?: boolean;
+  isLoading?: boolean;
   onSave?: (id: string) => void;
   onClaim?: (id: string) => void;
 }
@@ -28,6 +30,8 @@ export function DiscountListingCard({
   isExclusive = false,
   isLimitedTime = false,
   isSaved = false,
+  isApproved = false,
+  isLoading = false,
   onSave,
   onClaim,
 }: DiscountListingCardProps) {
@@ -51,7 +55,7 @@ export function DiscountListingCard({
               <img src={brandLogo} alt={brandName} className="w-full h-full object-contain p-1" />
             ) : (
               <span className="text-xs font-bold text-center text-purple-600">
-                {brandName.substring(0, 4).toUpperCase()}
+                {(brandName || 'Brand').substring(0, 4).toUpperCase()}
               </span>
             )}
           </div>
@@ -110,30 +114,50 @@ export function DiscountListingCard({
 
       {/* Action Buttons */}
       <div className="px-4 pb-4 pt-2 space-y-2">
-        <Button
-          onClick={() => onClaim?.(id)}
-          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 rounded-lg transition-all flex items-center justify-center gap-2"
-        >
-          <Zap className="w-4 h-4" />
-          Claim Discount
-        </Button>
+        {isApproved ? (
+          <>
+            <Button
+              onClick={() => onClaim?.(id)}
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-2 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  Claim Discount
+                </>
+              )}
+            </Button>
 
-        <button
-          onClick={handleCopyCode}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-        >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 text-green-600" />
-              <span className="text-green-600">Copied!</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4" />
-              Copy Code
-            </>
-          )}
-        </button>
+            <button
+              onClick={handleCopyCode}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 text-green-600" />
+                  <span className="text-green-600">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  Copy Code
+                </>
+              )}
+            </button>
+          </>
+        ) : (
+          <div className="w-full p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-center">
+            <p className="text-xs text-yellow-800 font-medium">⏳ Awaiting Admin Approval</p>
+            <p className="text-xs text-yellow-700 mt-1">Complete admin verification to claim discounts</p>
+          </div>
+        )}
       </div>
     </div>
   );

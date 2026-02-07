@@ -438,7 +438,7 @@ export function AdminOffers() {
                     <div>
                       <p className="text-xs text-gray-600 font-medium mb-1 uppercase">Discount</p>
                       <p className="text-xl font-bold text-orange-600">
-                        {offer.discountType === 'percentage' ? `${offer.discount}%` : `$${offer.discount}`}
+                        {offer.discountType === 'percentage' ? `${offer.discount}%` : `₹${offer.discount}`}
                       </p>
                     </div>
                     <div>

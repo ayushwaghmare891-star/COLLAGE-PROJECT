@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { StudentSidebar } from './dashboard/sidebar';
 import { StudentTopNav } from './dashboard/top-nav';
 import { MyCoupons } from './my-coupons';
-import { getActiveCoupons } from '../../lib/studentAPI';
+import { getActiveCoupons, getVerificationStatus } from '../../lib/studentAPI';
 import { useAuthStore } from '../../stores/authStore';
+import { useRealtimeUpdates } from '../../hooks/useRealtimeUpdates';
 
 interface StudentProfile {
   name: string;
@@ -32,7 +33,8 @@ export function StudentCouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { token, user } = useAuthStore();
+  const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const { token, user, updateUser } = useAuthStore();
 
   const studentProfile: StudentProfile = {
     name: user?.name || 'Student',
@@ -45,8 +47,52 @@ export function StudentCouponsPage() {
     verificationStatus: 'verified',
   };
 
+  // Listen for student approval updates from admin
+  useRealtimeUpdates(
+    (update) => {
+      // When student status is updated by admin (approval/rejection)
+      if (update.student) {
+        // Update the user in auth store with new approval status
+        updateUser({
+          approvalStatus: update.student.approvalStatus || update.approvalStatus,
+        });
+        setApprovalStatus(update.student.approvalStatus || update.approvalStatus);
+      }
+    }
+  );
+
   useEffect(() => {
-    fetchCoupons();
+    // Fetch latest approval status from backend
+    const fetchApprovalStatus = async () => {
+      try {
+        const status = await getVerificationStatus();
+        if (status?.approvalStatus) {
+          setApprovalStatus(status.approvalStatus as 'pending' | 'approved' | 'rejected');
+          // Also update the auth store
+          updateUser({
+            approvalStatus: status.approvalStatus,
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching approval status:', err);
+        // Fall back to user store if fetch fails
+        if (user?.approvalStatus) {
+          setApprovalStatus(user.approvalStatus as 'pending' | 'approved' | 'rejected');
+        }
+      }
+    };
+
+    if (token) {
+      fetchApprovalStatus();
+      fetchCoupons();
+
+      // Refresh approval status every 30 seconds to catch admin updates
+      const approvalStatusInterval = setInterval(() => {
+        fetchApprovalStatus();
+      }, 30000);
+
+      return () => clearInterval(approvalStatusInterval);
+    }
   }, [token]);
 
   const fetchCoupons = async () => {
@@ -144,6 +190,7 @@ export function StudentCouponsPage() {
                 {/* Coupons List */}
                 <MyCoupons 
                   coupons={coupons}
+                  isApproved={approvalStatus === 'approved'}
                   onRemove={handleRemoveCoupon}
                   onViewDetails={handleViewDetails}
                 />

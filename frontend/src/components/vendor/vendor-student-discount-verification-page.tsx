@@ -11,19 +11,6 @@ export function VendorStudentDiscountVerificationPage() {
   const navigate = useNavigate()
   const { user, isAuthenticated } = useAuthStore()
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const activeTab = 'verification'
-
-  const handleTabChange = (tab: string) => {
-    if (tab === 'discounts') {
-      navigate('/vendor/studentdiscounts')
-    } else if (tab === 'products') {
-      navigate('/vendor/products')
-    } else if (tab === 'verification') {
-      navigate('/vendor/studentdiscountverification')
-    } else {
-      navigate('/vendor/dashboard', { state: { activeTab: tab } })
-    }
-  }
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'vendor') {
@@ -39,17 +26,15 @@ export function VendorStudentDiscountVerificationPage() {
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
       <VendorSidebar 
-        activeTab={activeTab} 
-        setActiveTab={handleTabChange}
         isOpen={sidebarOpen}
-        setIsOpen={setSidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        isMobile={false}
       />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <VendorTopBar 
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-          currentTab={activeTab}
         />
         <main className="flex-1 overflow-auto">
           <StudentVerification />

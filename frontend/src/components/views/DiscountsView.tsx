@@ -8,11 +8,22 @@ import { useAppStore } from '../../stores/appStore';
 import { DiscountDrawer } from '../DiscountDrawer';
 import { useToast } from '../../hooks/use-toast';
 import { fetchAllActiveOffers } from '../../lib/offerAPI';
-import type { VendorDiscount } from '../../types';
+import type { Discount } from '../../types';
+
+interface DiscountOffer extends Discount {
+  id: string;
+  vendorId: string;
+  brand: string;
+  category: string;
+  expiryDays: number;
+  isExpired: boolean;
+  isActive: boolean;
+}
 
 export function DiscountsView() {
-  const { verificationStatus, allOffers, setAllOffers, setVerificationStatus } = useAppStore();
-  const [selectedDiscount, setSelectedDiscount] = useState<VendorDiscount | null>(null);
+  const { verificationStatus, setVerificationStatus } = useAppStore();
+  const [allOffers, setAllOffers] = useState<DiscountOffer[]>([]);
+  const [selectedDiscount, setSelectedDiscount] = useState<DiscountOffer | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('popularity');
   const [loading, setLoading] = useState(true);
@@ -21,8 +32,8 @@ export function DiscountsView() {
 
   // Get unique categories from offers
   const uniqueCategories = Array.from(
-    new Set(allOffers.map(o => o.category).filter(Boolean))
-  ).sort();
+    new Set(allOffers.map((o: DiscountOffer) => o.category).filter(Boolean))
+  ).sort() as string[];
 
   const loadOffers = async (showLoading = true, category?: string) => {
     try {
@@ -48,7 +59,7 @@ export function DiscountsView() {
           id: offer._id,
           vendorId: offer.vendorId?._id || offer.vendorId || 'vendor1',
           brand: offer.title,
-          discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `$${offer.offerValue} off`,
+          discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `₹${offer.offerValue} off`,
           description: offer.description,
           category: offer.category,
           expiryDays: Math.ceil((new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
@@ -109,7 +120,7 @@ export function DiscountsView() {
     return () => clearInterval(interval);
   }, []);
 
-  const filteredDiscounts = allOffers.filter(d => {
+  const filteredDiscounts = allOffers.filter((d: DiscountOffer) => {
     if (categoryFilter === 'all') return true;
     // Case-insensitive category comparison
     return d.category?.toLowerCase() === categoryFilter.toLowerCase();
@@ -215,8 +226,8 @@ export function DiscountsView() {
               </SelectTrigger>
               <SelectContent className="bg-popover text-popover-foreground">
                 <SelectItem value="all" className="text-popover-foreground cursor-pointer">All Categories ({allOffers.length})</SelectItem>
-                {uniqueCategories.map((category) => {
-                  const count = allOffers.filter(o => o.category?.toLowerCase() === category.toLowerCase()).length;
+                {uniqueCategories.map((category: string) => {
+                  const count = allOffers.filter((o: DiscountOffer) => o.category?.toLowerCase() === category.toLowerCase()).length;
                   return (
                     <SelectItem 
                       key={category}

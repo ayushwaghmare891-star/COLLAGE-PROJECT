@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SearchIcon, BellIcon, MenuIcon, UserIcon, LogOutIcon, SettingsIcon, HeartIcon, SparklesIcon } from 'lucide-react';
+import { SearchIcon, MenuIcon, UserIcon, LogOutIcon, SettingsIcon, HeartIcon, SparklesIcon } from 'lucide-react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { Badge } from './ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useAuthStore } from '../stores/authStore';
+import NotificationBell from './NotificationBell';
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -21,7 +21,6 @@ interface TopBarProps {
 export function TopBar({ onMenuClick }: TopBarProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const [notifications] = useState(3);
 
   const handleLogout = async () => {
     try {
@@ -73,18 +72,11 @@ export function TopBar({ onMenuClick }: TopBarProps) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="relative bg-transparent text-foreground hover:bg-blue-100 dark:hover:bg-blue-900 h-10 w-10 sm:h-11 sm:w-11"
-        >
-          <BellIcon className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={2} />
-          {notifications > 0 && (
-            <Badge className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center p-0 bg-gradient-to-r from-red-500 to-pink-500 text-white text-xs animate-pulse">
-              {notifications}
-            </Badge>
-          )}
-        </Button>
+        <NotificationBell 
+          userId={user?.id} 
+          userType={user?.role === 'admin' ? 'admin' : user?.role === 'vendor' ? 'vendor' : 'student'}
+          className="h-10 w-10 sm:h-11 sm:w-11"
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

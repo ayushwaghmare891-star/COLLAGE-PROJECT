@@ -43,11 +43,15 @@ export function useRealtimeUpdates(
   const socketRef = useRef<Socket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttemptsRef = useRef(5);
+  const isConnectingRef = useRef(false);
 
   const connect = useCallback(() => {
-    if (socketRef.current?.connected) {
+    // Prevent multiple simultaneous connection attempts
+    if (socketRef.current?.connected || isConnectingRef.current) {
       return;
     }
+
+    isConnectingRef.current = true;
 
     const token = localStorage.getItem('auth_token');
     const userStr = localStorage.getItem('user');
@@ -90,6 +94,7 @@ export function useRealtimeUpdates(
 
       socket.on('connect', () => {
         console.log('✅ WebSocket connected:', socket.id);
+        isConnectingRef.current = false;
         reconnectAttemptsRef.current = 0;
         
         // Join appropriate room based on role
@@ -163,27 +168,32 @@ export function useRealtimeUpdates(
       // Disconnection
       socket.on('disconnect', () => {
         console.log('❌ WebSocket disconnected');
+        isConnectingRef.current = false;
         onConnectionStatusChange?.(false);
       });
 
       // Errors
       socket.on('error', (error) => {
         console.error('WebSocket error:', error);
+        isConnectingRef.current = false;
       });
 
       socket.on('connect_error', (error) => {
         console.error('Connection error:', error);
+        isConnectingRef.current = false;
         reconnectAttemptsRef.current++;
       });
 
       socketRef.current = socket;
     } catch (error) {
       console.error('Failed to initialize WebSocket:', error);
+      isConnectingRef.current = false;
     }
-  }, [onStudentUpdated, onVendorUpdated, onUserDeleted, onStudentsUpdated, onVendorsUpdated, onOffersUpdated, onVendorAnalyticsUpdated, onConnectionStatusChange]);
+  }, []);
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {
+      isConnectingRef.current = false;
       socketRef.current.disconnect();
       socketRef.current = null;
       console.log('🔌 WebSocket disconnected manually');
@@ -250,7 +260,7 @@ export function useRealtimeUpdates(
     return () => {
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, []);
 
   return {
     isConnected: socketRef.current?.connected || false,

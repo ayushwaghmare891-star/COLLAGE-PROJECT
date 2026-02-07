@@ -20,6 +20,7 @@ import {
 } from '../ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getHeaders, API_BASE_URL } from '@/lib/api';
+import { useVendorAdmin } from '@/hooks/useVendorAdmin';
 
 interface Vendor {
   _id: string;
@@ -34,6 +35,16 @@ interface Vendor {
   isSuspended: boolean;
   businessDocumentUrl?: string;
   createdAt: string;
+  businessAddress?: string;
+  businessCity?: string;
+  businessState?: string;
+  businessZipCode?: string;
+  businessRegistrationNumber?: string;
+  taxId?: string;
+  numberOfOffersActive?: number;
+  numberOfOffersPending?: number;
+  rating?: number;
+  totalSales?: number;
 }
 
 interface VendorStats {
@@ -56,13 +67,80 @@ export function AdminVendorManagement() {
   const [remarks, setRemarks] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [rtConnected, setRtConnected] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const { toast } = useToast();
+
+  // Initialize real-time vendor admin hook
+  const {
+    requestVendors,
+    notifyVendorApproval,
+    notifyVendorSuspension,
+    notifyVendorVerification,
+  } = useVendorAdmin(
+    // onVendorsLoaded
+    (data) => {
+      setVendors(data.vendors);
+      setStats({
+        totalVendors: data.stats.total,
+        approvedVendors: data.stats.approved,
+        pendingVendors: data.stats.pending,
+        rejectedVendors: data.stats.rejected,
+        verifiedVendors: data.stats.verified,
+        suspendedVendors: data.stats.suspended,
+      });
+    },
+    // onVendorMessageReceived
+    (message) => {
+      toast({
+        title: `Message from ${message.vendorName}`,
+        description: message.message,
+        variant: message.messageType === 'error' ? 'destructive' : 'default',
+      });
+    },
+    // onVendorApprovalChanged
+    (update) => {
+      setVendors(prev => prev.map(v => v._id === update.vendorId ? { ...v, approvalStatus: update.status as any } : v));
+      toast({
+        title: 'Vendor Update',
+        description: `${update.vendorName} approval status changed to ${update.status}`,
+      });
+    },
+    // onVendorSuspensionChanged
+    (update) => {
+      setVendors(prev => prev.map(v => v._id === update.vendorId ? { ...v, isSuspended: update.suspended } : v));
+    },
+    // onVendorVerificationChanged
+    (update) => {
+      setVendors(prev => prev.map(v => v._id === update.vendorId ? { ...v, verificationStatus: update.verificationStatus as any } : v));
+    },
+    // onVendorProfileUpdated
+    (update) => {
+      toast({
+        title: 'Vendor Profile Updated',
+        description: `${update.vendorName} has updated their profile`,
+      });
+    },
+    // onOnlineVendorsUpdated
+    (data) => {
+      console.log(`${data.onlineCount} vendors currently online`);
+    },
+    // onConnectionStatusChange
+    (connected) => {
+      setRtConnected(connected);
+    }
+  );
 
   // Fetch vendors on mount and when filters change
   useEffect(() => {
     fetchVendors();
     fetchStats();
-  }, [filterStatus, searchTerm]);
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      requestVendors(user.id);
+    }
+  }, [filterStatus, searchTerm, requestVendors]);
 
   const fetchVendors = async () => {
     try {
@@ -168,6 +246,23 @@ export function AdminVendorManagement() {
         
         // Update vendor in list
         setVendors(vendors.map((v: Vendor) => v._id === selectedVendor._id ? result.data : v));
+        
+        // Send real-time notifications to vendor
+        if (rtConnected) {
+          switch (actionType) {
+            case 'approve':
+            case 'reject':
+              notifyVendorApproval(selectedVendor._id, selectedVendor.name, actionType === 'approve' ? 'approved' : 'rejected', remarks);
+              break;
+            case 'suspend':
+            case 'activate':
+              notifyVendorSuspension(selectedVendor._id, selectedVendor.name, actionType === 'suspend', remarks);
+              break;
+            case 'verify':
+              notifyVendorVerification(selectedVendor._id, selectedVendor.name, remarks as any, 'Verified by admin');
+              break;
+          }
+        }
         
         // Reset dialog
         setSelectedVendor(null);
@@ -284,6 +379,22 @@ export function AdminVendorManagement() {
         </Button>
       );
     }
+
+    // View details button
+    buttons.push(
+      <Button
+        key="details"
+        size="sm"
+        variant="outline"
+        className="text-blue-600 hover:text-blue-700"
+        onClick={() => {
+          setSelectedVendor(vendor);
+          setShowDetailModal(true);
+        }}
+      >
+        📋 Details
+      </Button>
+    );
 
     return buttons;
   };
@@ -491,6 +602,108 @@ export function AdminVendorManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Vendor Details Modal */}
+      {showDetailModal && selectedVendor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-96 overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Vendor Details</h2>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Contact Name</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Business Name</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.businessName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Email</p>
+                  <p className="text-sm font-semibold text-gray-900 break-all">{selectedVendor.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Mobile Number</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.mobileNumber}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Business Type</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.businessType}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Registration Number</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.businessRegistrationNumber || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Tax ID</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.taxId || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Approval Status</p>
+                  <Badge className={`mt-1 ${
+                    selectedVendor.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                    selectedVendor.approvalStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedVendor.approvalStatus}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Verification Status</p>
+                  <Badge className={`mt-1 ${
+                    selectedVendor.verificationStatus === 'verified' ? 'bg-green-100 text-green-800' :
+                    selectedVendor.verificationStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedVendor.verificationStatus}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Account Status</p>
+                  <Badge className={selectedVendor.isSuspended ? 'bg-red-100 text-red-800' : selectedVendor.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                    {selectedVendor.isSuspended ? 'Suspended' : selectedVendor.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Active Offers</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.numberOfOffersActive || 0}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Pending Offers</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedVendor.numberOfOffersPending || 0}</p>
+                </div>
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-xs text-gray-500 font-medium uppercase mb-2">Business Address</p>
+                <p className="text-sm text-gray-700">
+                  {selectedVendor.businessAddress || 'N/A'}, {selectedVendor.businessCity || ''}, {selectedVendor.businessState || ''} {selectedVendor.businessZipCode || ''}
+                </p>
+              </div>
+              <div className="border-t pt-4">
+                <p className="text-xs text-gray-500 font-medium uppercase mb-2">Joined</p>
+                <p className="text-sm text-gray-700">{new Date(selectedVendor.createdAt).toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 bg-gray-50 flex gap-2 justify-end">
+              <Button
+                onClick={() => setShowDetailModal(false)}
+                variant="outline"
+                className="text-xs"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

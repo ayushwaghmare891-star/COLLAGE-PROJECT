@@ -17,6 +17,7 @@ interface Discount {
   validTo?: string
   status: 'active' | 'expired' | 'pending'
   usageCount?: number
+  claimedByStudents?: number
 }
 
 export function VendorDiscounts() {
@@ -52,10 +53,38 @@ export function VendorDiscounts() {
           value: String(d.value || d.discountValue || 0),
           status: d.status || 'active',
           usageCount: d.usageCount || 0,
+          claimedByStudents: d.redemptions?.length || d.redeemedBy?.length || 0,
         }))
         setDiscounts(formattedDiscounts)
       }
       setLoading(false)
+    },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    // onCouponClaimed
+    (claimData) => {
+      console.log('Real-time coupon claim update:', claimData)
+      // Update the discount with the new claim count
+      setDiscounts(prevDiscounts => 
+        prevDiscounts.map(discount => 
+          discount.id === claimData.offerId 
+            ? {
+                ...discount,
+                claimedByStudents: claimData.claimedByStudents,
+                usageCount: claimData.totalClaims,
+              }
+            : discount
+        )
+      )
+      // Show toast notification
+      toast({
+        title: '🎉 New Claim!',
+        description: claimData.message || `A student claimed "${claimData.offerTitle}"`,
+        variant: 'default',
+      })
     }
   )
 
@@ -101,6 +130,7 @@ export function VendorDiscounts() {
           validTo: d.validTo || '',
           status: d.status || 'active',
           usageCount: d.usageCount || 0,
+          claimedByStudents: d.redemptions?.length || d.redeemedBy?.length || 0,
         }))
         setDiscounts(formatted)
       }
@@ -178,7 +208,7 @@ export function VendorDiscounts() {
 
   const handleDeleteDiscount = async (id: string | number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/vendor/discounts/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/offers/delete/${id}`, {
         method: 'DELETE',
         headers: getHeaders(),
       })
@@ -213,7 +243,7 @@ export function VendorDiscounts() {
   const handleUpdateDiscount = async () => {
     if (editingId !== null) {
       try {
-        const response = await fetch(`${API_BASE_URL}/vendor/discounts/${editingId}`, {
+        const response = await fetch(`${API_BASE_URL}/offers/update/${editingId}`, {
           method: 'PUT',
           headers: getHeaders(),
           body: JSON.stringify(formData),
@@ -343,9 +373,15 @@ export function VendorDiscounts() {
                 <Calendar size={16} />
                 <span>Valid To: {discount.validTo}</span>
               </div>
-              <div className="mt-3">
-                <p className="text-xs text-gray-600">Usage</p>
-                <p className="text-lg font-bold text-gray-900 mt-1">{discount.usageCount} uses</p>
+              <div className="mt-3 space-y-2">
+                <div>
+                  <p className="text-xs text-gray-600">Usage</p>
+                  <p className="text-lg font-bold text-gray-900 mt-1">{discount.usageCount} uses</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-600">Students Claimed</p>
+                  <p className="text-lg font-bold text-blue-600 mt-1">{discount.claimedByStudents || 0} students</p>
+                </div>
               </div>
             </div>
 

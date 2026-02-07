@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import {
   LayoutDashboard,
   User,
@@ -11,29 +10,21 @@ import {
   BarChart3,
   Bell,
   LogOut,
-  ChevronLeft,
-  Menu,
-  XIcon,
+  Ticket,
 } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 interface VendorSidebarProps {
-  activeTab: string
-  setActiveTab: (tab: string) => void
   isOpen: boolean
-  setIsOpen: (open: boolean) => void
+  onClose: () => void
+  isMobile: boolean
 }
 
-export function VendorSidebar({
-  activeTab,
-  setActiveTab,
-  isOpen,
-  setIsOpen,
-}: VendorSidebarProps) {
+export function VendorSidebar({ isOpen, onClose, isMobile }: VendorSidebarProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { logout } = useAuthStore()
-  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -42,54 +33,73 @@ export function VendorSidebar({
 
   const menuItems = [
     {
-      id: 'overview',
+      id: 'dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
       description: 'Overview & stats',
+      path: '/vendor/dashboard',
     },
     {
       id: 'products',
       label: 'Products',
       icon: Package,
       description: 'Manage products',
+      path: '/vendor/products',
     },
     {
       id: 'discounts',
       label: 'Discounts',
       icon: Percent,
       description: 'Set discounts',
+      path: '/vendor/discounts',
+    },
+    {
+      id: 'coupons',
+      label: 'Coupons',
+      icon: Ticket,
+      description: 'Coupon claims',
+      path: '/vendor/coupons',
     },
     {
       id: 'verification',
       label: 'Verification',
       icon: FileCheck,
       description: 'Verify students',
+      path: '/vendor/verification',
     },
     {
       id: 'orders',
       label: 'Orders',
       icon: ShoppingCart,
       description: 'View orders',
+      path: '/vendor/orders',
     },
     {
       id: 'analytics',
       label: 'Analytics',
       icon: BarChart3,
       description: 'Reports & stats',
+      path: '/vendor/analytics',
     },
     {
       id: 'notifications',
       label: 'Notifications',
       icon: Bell,
       description: 'Messages',
+      path: '/vendor/notifications',
     },
     {
       id: 'profile',
       label: 'Profile',
       icon: User,
       description: 'Edit profile',
+      path: '/vendor/profile',
     },
   ]
+
+  const getActivePath = () => {
+    return location.pathname
+  }
 
   const sidebarContent = (
     <>
@@ -107,14 +117,6 @@ export function VendorSidebar({
               </div>
             )}
           </div>
-          {!isOpen && (
-            <button
-              onClick={() => setIsOpen(true)}
-              className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition"
-            >
-              <Menu size={20} className="text-gray-600" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -122,29 +124,13 @@ export function VendorSidebar({
       <nav className="flex-1 px-3 py-6 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon
-          const isActive = activeTab === item.id
+          const isActive = getActivePath().includes(item.path)
           return (
             <button
               key={item.id}
               onClick={() => {
-                setShowMobileMenu(false)
-                if (item.id === 'products') {
-                  navigate('/vendor/products')
-                } else if (item.id === 'discounts') {
-                  navigate('/vendor/studentdiscounts')
-                } else if (item.id === 'verification') {
-                  navigate('/vendor/studentdiscountverification')
-                } else if (item.id === 'orders') {
-                  navigate('/vendor/studentorder')
-                } else if (item.id === 'analytics') {
-                  navigate('/vendor/analyticsandreports')
-                } else if (item.id === 'notifications') {
-                  navigate('/vendor/notifications')
-                } else if (item.id === 'profile') {
-                  navigate('/vendor/profilesettings')
-                } else {
-                  setActiveTab(item.id)
-                }
+                navigate(item.path)
+                onClose()
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
                 isActive
@@ -189,66 +175,23 @@ export function VendorSidebar({
       </aside>
 
       {/* Mobile Sidebar */}
-      {showMobileMenu && (
-        <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
-          onClick={() => setShowMobileMenu(false)}
-        />
-      )}
-      <aside
-        className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 lg:hidden transform transition-transform duration-300 ${
-          showMobileMenu ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="flex items-center justify-between p-4">
-          <h1 className="font-bold text-lg">VendorHub</h1>
-          <button
-            onClick={() => setShowMobileMenu(false)}
-            className="p-2 hover:bg-gray-100 rounded-lg"
+      {isMobile && (
+        <>
+          <div
+            className={`fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden transition-opacity ${
+              isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+            onClick={onClose}
+          />
+          <aside
+            className={`fixed top-0 left-0 h-full w-64 bg-white border-r border-gray-200 z-50 lg:hidden transform transition-transform duration-300 ${
+              isOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
           >
-            <XIcon size={20} />
-          </button>
-        </div>
-        <nav className="px-3 py-6 space-y-2">
-          {menuItems.map((item) => {
-            const Icon = item.icon
-            const isActive = activeTab === item.id
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setShowMobileMenu(false)
-                  if (item.id === 'products') {
-                    navigate('/vendor/products')
-                  } else if (item.id === 'discounts') {
-                    navigate('/vendor/studentdiscounts')
-                  } else if (item.id === 'verification') {
-                    navigate('/vendor/studentdiscountverification')
-                  } else if (item.id === 'orders') {
-                    navigate('/vendor/studentorder')
-                  } else if (item.id === 'analytics') {
-                    navigate('/vendor/analyticsandreports')
-                  } else if (item.id === 'notifications') {
-                    navigate('/vendor/notifications')
-                  } else if (item.id === 'profile') {
-                    navigate('/vendor/profilesettings')
-                  } else {
-                    setActiveTab(item.id)
-                  }
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <Icon size={20} />
-                <span className="font-medium">{item.label}</span>
-              </button>
-            )
-          })}
-        </nav>
-      </aside>
+            {sidebarContent}
+          </aside>
+        </>
+      )}
     </>
   )
 }

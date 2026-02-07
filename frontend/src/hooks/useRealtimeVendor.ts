@@ -56,7 +56,8 @@ export function useRealtimeVendor(
   onProfileUpdated?: (profile: any) => void,
   onNotificationReceived?: (notification: VendorNotification) => void,
   onConnectionStatusChange?: (connected: boolean) => void,
-  onVerificationsUpdated?: (update: VendorVerificationUpdate) => void
+  onVerificationsUpdated?: (update: VendorVerificationUpdate) => void,
+  onCouponClaimed?: (data: any) => void
 ) {
   const socketRef = useRef<Socket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -216,6 +217,12 @@ export function useRealtimeVendor(
         onVerificationsUpdated?.(update);
       });
 
+      // ========== COUPON CLAIMS ==========
+      socket.on('vendor:coupon-claimed', (data) => {
+        console.log('🎉 Coupon claimed real-time update:', data);
+        onCouponClaimed?.(data);
+      });
+
       // Disconnection
       socket.on('disconnect', () => {
         console.log('❌ Vendor WebSocket disconnected');
@@ -236,18 +243,7 @@ export function useRealtimeVendor(
     } catch (error) {
       console.error('Failed to initialize vendor WebSocket:', error);
     }
-  }, [
-    onProductsUpdated,
-    onOrdersUpdated,
-    onAnalyticsUpdated,
-    onDiscountsUpdated,
-    onNotificationsUpdated,
-    onOverviewUpdated,
-    onProfileUpdated,
-    onNotificationReceived,
-    onConnectionStatusChange,
-    onVerificationsUpdated,
-  ]);
+  }, []);
 
   const disconnect = useCallback(() => {
     if (socketRef.current) {
@@ -325,7 +321,7 @@ export function useRealtimeVendor(
     return () => {
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, []);
 
   return {
     isConnected: socketRef.current?.connected || false,

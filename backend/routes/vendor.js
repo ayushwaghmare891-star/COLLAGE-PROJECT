@@ -23,10 +23,10 @@ router.get('/profile', authenticateToken, authorizeRole('vendor'), async (req, r
     }
 
     // Get vendor statistics
-    const totalOffers = await Offer.countDocuments({ vendorId: req.user.id });
-    const activeOffers = await Offer.countDocuments({ vendorId: req.user.id, isActive: true });
+    const totalOffers = await Offer.countDocuments({ vendor: req.user.id });
+    const activeOffers = await Offer.countDocuments({ vendor: req.user.id, isActive: true });
     const totalRedemptions = await Offer.aggregate([
-      { $match: { vendorId: req.user.id } },
+      { $match: { vendor: req.user.id } },
       { $group: { _id: null, total: { $sum: '$currentRedemptions' } } },
     ]);
 
@@ -56,11 +56,11 @@ router.get('/dashboard/overview', authenticateToken, authorizeRole('vendor'), as
   try {
     const vendorId = req.user.id;
     
-    const totalOffers = await Offer.countDocuments({ vendorId });
-    const activeOffers = await Offer.countDocuments({ vendorId, isActive: true });
+    const totalOffers = await Offer.countDocuments({ vendor: vendorId });
+    const activeOffers = await Offer.countDocuments({ vendor: vendorId, isActive: true });
     
     const redemptionData = await Offer.aggregate([
-      { $match: { vendorId } },
+      { $match: { vendor: vendorId } },
       { $group: { 
         _id: null, 
         totalRedemptions: { $sum: '$currentRedemptions' },
@@ -150,7 +150,7 @@ router.get('/orders', authenticateToken, authorizeRole('vendor'), async (req, re
     const { page = 1, limit = 10, status = 'all' } = req.query;
     
     const skip = (page - 1) * limit;
-    let filter = { vendorId };
+    let filter = { vendor: vendorId };
     
     if (status === 'active') {
       filter.isActive = true;
@@ -208,7 +208,7 @@ router.get('/products', authenticateToken, authorizeRole('vendor'), async (req, 
     const { page = 1, limit = 10, search = '', category = 'all' } = req.query;
     
     const skip = (page - 1) * limit;
-    let filter = { vendorId };
+    let filter = { vendor: vendorId };
     
     if (search) {
       filter.title = { $regex: search, $options: 'i' };
@@ -264,7 +264,7 @@ router.get('/discounts', authenticateToken, authorizeRole('vendor'), async (req,
   try {
     const vendorId = req.user.id;
     
-    const discounts = await Offer.find({ vendorId })
+    const discounts = await Offer.find({ vendor: vendorId })
       .select('title discountValue discountType isActive createdAt')
       .sort({ createdAt: -1 })
       .lean();
@@ -315,7 +315,7 @@ router.get('/notifications', authenticateToken, authorizeRole('vendor'), async (
     const skip = (page - 1) * limit;
 
     // Get recent offers for notification context
-    const recentOffers = await Offer.find({ vendorId })
+    const recentOffers = await Offer.find({ vendor: vendorId })
       .select('title isActive approvalStatus createdAt updatedAt')
       .skip(skip)
       .limit(limit)

@@ -2,16 +2,16 @@
 
 import { Menu, Search, Bell, User, LogOut } from 'lucide-react'
 import { useAuthStore } from '../../stores/authStore'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 
 interface VendorTopBarProps {
   onMenuClick: () => void
-  currentTab: string
 }
 
-export function VendorTopBar({ onMenuClick, currentTab }: VendorTopBarProps) {
+export function VendorTopBar({ onMenuClick }: VendorTopBarProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user, logout } = useAuthStore()
   const [showDropdown, setShowDropdown] = useState(false)
 
@@ -20,15 +20,19 @@ export function VendorTopBar({ onMenuClick, currentTab }: VendorTopBarProps) {
     navigate('/vendor/login')
   }
 
-  const tabTitles: Record<string, string> = {
-    overview: 'Dashboard',
-    products: 'Products & Services',
-    discounts: 'Student Discounts',
-    verification: 'Student Document Verification',
-    orders: 'Orders',
-    analytics: 'Analytics & Reports',
-    notifications: 'Notifications',
-    profile: 'Profile Settings',
+  const getPageTitle = () => {
+    const pathname = location.pathname
+    
+    if (pathname.includes('/dashboard')) return 'Dashboard'
+    if (pathname.includes('/products')) return 'Products & Services'
+    if (pathname.includes('/discounts')) return 'Student Discounts'
+    if (pathname.includes('/verification')) return 'Student Document Verification'
+    if (pathname.includes('/orders')) return 'Orders'
+    if (pathname.includes('/analytics')) return 'Analytics & Reports'
+    if (pathname.includes('/notifications')) return 'Notifications'
+    if (pathname.includes('/profile')) return 'Profile Settings'
+    
+    return 'Dashboard'
   }
 
   return (
@@ -44,7 +48,7 @@ export function VendorTopBar({ onMenuClick, currentTab }: VendorTopBarProps) {
           </button>
           <div>
             <h2 className="text-xl font-bold text-gray-900">
-              {tabTitles[currentTab] || 'Dashboard'}
+              {getPageTitle()}
             </h2>
             <p className="text-sm text-gray-500">Manage your vendor account</p>
           </div>
@@ -102,7 +106,7 @@ export function VendorTopBar({ onMenuClick, currentTab }: VendorTopBarProps) {
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg z-50">
                 <button
                   onClick={() => {
-                    // Navigate to profile
+                    navigate('/vendor/profile')
                     setShowDropdown(false)
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 border-b border-gray-200 transition"

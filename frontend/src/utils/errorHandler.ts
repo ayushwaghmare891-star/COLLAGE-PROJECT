@@ -16,6 +16,7 @@ export function initializeErrorHandler() {
         '[Browser Extension]: Message channel error (suppressed)',
         event.message
       )
+      return true
     }
   })
 
@@ -33,4 +34,37 @@ export function initializeErrorHandler() {
       )
     }
   })
+
+  // Suppress chrome.runtime.lastError messages from browser extensions
+  // This handles "Unchecked runtime.lastError" warnings
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    const originalError = Object.getOwnPropertyDescriptor(
+      chrome.runtime,
+      'lastError'
+    )
+
+    Object.defineProperty(chrome.runtime, 'lastError', {
+      get() {
+        return originalError?.get?.() || null
+      },
+      set() {
+        // Do nothing - suppress the error
+      },
+      configurable: true,
+    })
+
+    // Override console.error to suppress runtime.lastError messages
+    const originalConsoleError = console.error
+    console.error = function (...args: any[]) {
+      const message = args[0]?.toString() || ''
+      if (
+        message.includes('Unchecked runtime.lastError') ||
+        message.includes('A listener indicated an asynchronous response')
+      ) {
+        // Silently suppress these extension errors
+        return
+      }
+      originalConsoleError.apply(console, args)
+    }
+  }
 }

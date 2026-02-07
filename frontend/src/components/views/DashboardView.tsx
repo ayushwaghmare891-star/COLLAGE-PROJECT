@@ -11,11 +11,12 @@ import { fetchAllActiveOffers } from '../../lib/offerAPI';
 
 export function DashboardView() {
   const navigate = useNavigate();
-  const { verificationStatus, discounts, setAllOffers, setVerificationStatus } = useAppStore();
+  const { verificationStatus, discounts, setVerificationStatus } = useAppStore();
   const { user } = useAuthStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [allDiscounts, setAllDiscounts] = useState(discounts);
 
   const loadOffers = async (showLoading = true) => {
     if (showLoading) setIsRefreshing(true);
@@ -28,7 +29,7 @@ export function DashboardView() {
         id: offer._id,
         vendorId: offer.vendorId?._id || offer.vendorId,
         brand: offer.title,
-        discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `$${offer.offerValue} off`,
+        discount: offer.offerType === 'percentage' ? `${offer.offerValue}% off` : `₹${offer.offerValue} off`,
         description: offer.description,
         category: offer.category,
         expiryDays: Math.ceil((new Date(offer.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
@@ -41,7 +42,7 @@ export function DashboardView() {
         isActive: offer.isActive,
         code: offer.code,
       })) || [];
-      setAllOffers(offers);
+      setAllDiscounts(offers);
       console.log(`Successfully loaded ${offers.length} offers`);
     } catch (error) {
       console.error('Failed to load offers:', error);
@@ -83,8 +84,8 @@ export function DashboardView() {
     return () => clearInterval(interval);
   }, []);
 
-  const activeDiscounts = discounts.filter(d => !d.isExpired).length;
-  const usedDiscounts = discounts.filter(d => d.isUsed).length;
+  const activeDiscounts = allDiscounts.filter(d => !d.isExpired).length;
+  const usedDiscounts = allDiscounts.filter(d => d.isUsed).length;
   const savedDiscounts = 3; // Mock data
 
   const categories = [
@@ -95,7 +96,7 @@ export function DashboardView() {
     { id: 'Entertainment', label: 'Entertainment', icon: '🎬', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
   ];
 
-  const filteredDiscounts = discounts.filter(d => {
+  const filteredDiscounts = allDiscounts.filter(d => {
     const matchesSearch = d.brand.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          d.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || d.category === selectedCategory;
@@ -209,7 +210,7 @@ export function DashboardView() {
           </CardHeader>
           <CardContent>
             <p className="text-4xl font-bold text-orange-900 dark:text-orange-100">
-              {discounts.filter(d => d.expiryDays <= 7 && !d.isExpired).length}
+              {allDiscounts.filter(d => d.expiryDays <= 7 && !d.isExpired).length}
             </p>
             <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">Within 7 days</p>
           </CardContent>

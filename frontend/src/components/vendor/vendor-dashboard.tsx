@@ -11,6 +11,7 @@ import { StudentVerification } from './student-verification'
 import { VendorOrders } from './vendor-orders'
 import { VendorAnalytics } from './vendor-analytics'
 import { VendorNotifications } from './vendor-notifications'
+import { VendorCouponClaims } from './vendor-coupon-claims'
 import { useAuthStore } from '../../stores/authStore'
 import { useNavigate } from 'react-router-dom'
 
@@ -44,6 +45,8 @@ export function VendorDashboard() {
         return <StudentVerification />
       case 'orders':
         return <VendorOrders />
+      case 'coupons':
+        return <VendorCouponClaims />
       case 'analytics':
         return <VendorAnalytics />
       case 'notifications':

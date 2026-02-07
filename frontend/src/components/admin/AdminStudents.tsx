@@ -30,6 +30,14 @@ interface Student {
   createdAt: string;
   studentIdDocument?: string;
   studentIdUploadedAt?: string;
+  phone?: string;
+  collegeEmail?: string;
+  collegeName?: string;
+  enrollmentNumber?: string;
+  branch?: string;
+  yearOfStudy?: string;
+  verificationStatus?: string;
+  isVerified?: boolean;
 }
 
 export function AdminStudents() {
@@ -43,6 +51,8 @@ export function AdminStudents() {
   const [wsConnected, setWsConnected] = useState(false);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const { toast } = useToast();
 
   // Set up real-time updates
@@ -58,6 +68,7 @@ export function AdminStudents() {
         description: `${update.student.firstName} ${update.student.lastName} status changed to ${update.approvalStatus}`,
       });
     },
+    undefined,
     (deletion) => {
       // Handle user deletion
       setStudents(prev => prev.filter(s => s._id !== deletion.userId));
@@ -68,7 +79,7 @@ export function AdminStudents() {
       });
     },
     (connected) => {
-      setWsConnected(connected);
+      setWsConnected(connected as any);
       if (connected) {
         toast({
           title: '🔌 Real-time Connected',
@@ -238,6 +249,11 @@ export function AdminStudents() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleViewDetails = (student: Student) => {
+    setSelectedStudent(student);
+    setShowDetailModal(true);
   };
 
   const filteredStudents = students.filter(student => {
@@ -582,6 +598,13 @@ export function AdminStudents() {
                       </>
                     )}
                     <Button
+                      size="sm"
+                      onClick={() => handleViewDetails(student)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium"
+                    >
+                      📋 View Details
+                    </Button>
+                    <Button
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDeleteStudent(student._id, `${student.firstName} ${student.lastName}`)}
@@ -597,6 +620,102 @@ export function AdminStudents() {
           )}
         </div>
       </div>
+
+      {/* Student Details Modal */}
+      {showDetailModal && selectedStudent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-96 overflow-y-auto">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-white">Student Details</h2>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">First Name</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.firstName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Last Name</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.lastName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Username</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.username}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Email</p>
+                  <p className="text-sm font-semibold text-gray-900 break-all">{selectedStudent.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Phone</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">College Email</p>
+                  <p className="text-sm font-semibold text-gray-900 break-all">{selectedStudent.collegeEmail || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">College Name</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.collegeName || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Enrollment Number</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.enrollmentNumber || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Branch</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.branch || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Year of Study</p>
+                  <p className="text-sm font-semibold text-gray-900">{selectedStudent.yearOfStudy || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Approval Status</p>
+                  <Badge className={`mt-1 ${
+                    selectedStudent.approvalStatus === 'approved' ? 'bg-green-100 text-green-800' :
+                    selectedStudent.approvalStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {selectedStudent.approvalStatus}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium uppercase">Email Verified</p>
+                  <Badge className={selectedStudent.isEmailVerified ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                    {selectedStudent.isEmailVerified ? 'Yes' : 'No'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="border-t pt-4 mt-4">
+                <p className="text-xs text-gray-500 font-medium uppercase mb-2">Joined</p>
+                <p className="text-sm text-gray-700">{new Date(selectedStudent.createdAt).toLocaleString()}</p>
+              </div>
+              {selectedStudent.studentIdUploadedAt && (
+                <div className="border-t pt-4">
+                  <p className="text-xs text-gray-500 font-medium uppercase mb-2">ID Document Uploaded</p>
+                  <p className="text-sm text-gray-700">{new Date(selectedStudent.studentIdUploadedAt).toLocaleString()}</p>
+                </div>
+              )}
+            </div>
+            <div className="border-t px-6 py-4 bg-gray-50 flex gap-2 justify-end">
+              <Button
+                onClick={() => setShowDetailModal(false)}
+                variant="outline"
+                className="text-xs"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -32,11 +32,11 @@ export const verifyStudentApproval = async (req, res, next) => {
       return res.status(404).json({ message: 'Student not found' });
     }
 
-    // Check if student is verified by admin
-    if (!student.isVerified || student.verificationStatus !== 'verified') {
+    // Check if student is approved by admin
+    if (student.approvalStatus !== 'approved') {
       return res.status(403).json({
         message: 'Your account is pending admin verification. Please wait for admin approval.',
-        verificationStatus: student.verificationStatus,
+        approvalStatus: student.approvalStatus,
       });
     }
 

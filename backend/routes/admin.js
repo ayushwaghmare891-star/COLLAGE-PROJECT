@@ -1,6 +1,7 @@
 import express from 'express';
 import Student from '../models/Student.js';
 import Admin from '../models/Admin.js';
+import Vendor from '../models/Vendor.js';
 import Offer from '../models/Offer.js';
 import Coupon from '../models/Coupon.js';
 import VerificationDocument from '../models/VerificationDocument.js';
@@ -163,6 +164,23 @@ router.get('/students', authenticateToken, authorizeRole('admin'), async (req, r
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch students', error: error.message });
+  }
+});
+
+// Get student details by ID
+router.get('/students/:studentId', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.studentId)
+      .select('-password')
+      .populate('verificationDocuments');
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json({ student });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch student details', error: error.message });
   }
 });
 
@@ -385,7 +403,7 @@ router.get('/offers', authenticateToken, authorizeRole('admin'), async (req, res
     }
 
     const offers = await Offer.find(filter)
-      .populate('vendorId', 'name businessName')
+      .populate('vendor', 'name businessName')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
@@ -403,6 +421,88 @@ router.get('/offers', authenticateToken, authorizeRole('admin'), async (req, res
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch offers', error: error.message });
+  }
+});
+
+// Delete an offer
+router.delete('/offers/:offerId', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const offer = await Offer.findByIdAndDelete(req.params.offerId);
+
+    if (!offer) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Offer not found' 
+      });
+    }
+
+    // Notify vendor that their offer was deleted
+    io.to(`vendor:${offer.vendor}`).emit('admin:offer-deleted', {
+      offerId: offer._id,
+      title: offer.title,
+      reason: 'Offer deleted by admin',
+      timestamp: new Date()
+    });
+
+    res.json({ 
+      success: true,
+      message: 'Offer deleted successfully' 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to delete offer', 
+      error: error.message 
+    });
+  }
+});
+
+// Toggle offer status (active/inactive)
+router.patch('/offers/:offerId/toggle', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.offerId);
+
+    if (!offer) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Offer not found' 
+      });
+    }
+
+    offer.isActive = !offer.isActive;
+    await offer.save();
+
+    // Notify vendor about status change
+    io.to(`vendor:${offer.vendor}`).emit('admin:offer-status-changed', {
+      offerId: offer._id,
+      title: offer.title,
+      isActive: offer.isActive,
+      changedBy: req.user.id,
+      timestamp: new Date()
+    });
+
+    // Notify students if offer is activated
+    if (offer.isActive) {
+      io.emit('student:offer-activated', {
+        offerId: offer._id,
+        title: offer.title,
+        discount: offer.discount,
+        discountType: offer.discountType,
+        timestamp: new Date()
+      });
+    }
+
+    res.json({ 
+      success: true,
+      message: `Offer ${offer.isActive ? 'activated' : 'deactivated'} successfully`,
+      data: { isActive: offer.isActive }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to toggle offer status', 
+      error: error.message 
+    });
   }
 });
 
@@ -426,6 +526,23 @@ router.get('/offers-stats', authenticateToken, authorizeRole('admin'), async (re
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch offers stats', error: error.message });
+  }
+});
+
+// Get vendor stats
+router.get('/vendor-stats', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const totalVendors = await Vendor.countDocuments();
+    const liveVendors = Math.floor(totalVendors * 0.4); // 40% live estimate
+    const offlineVendors = totalVendors - liveVendors;
+
+    res.json({
+      totalVendors,
+      liveVendors,
+      offlineVendors,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch vendor stats', error: error.message });
   }
 });
 
@@ -626,6 +743,481 @@ router.delete('/coupons/:couponId', authenticateToken, authorizeRole('admin'), a
       success: false,
       message: 'Failed to delete coupon',
       error: error.message
+    });
+  }
+});
+
+// ========== OFFER APPROVAL ENDPOINTS ==========
+
+// Approve an offer
+router.post('/offers/:offerId/approve', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const offer = await Offer.findById(req.params.offerId);
+    
+    if (!offer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found',
+      });
+    }
+
+    if (offer.approvalStatus === 'approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Offer is already approved',
+      });
+    }
+
+    offer.approvalStatus = 'approved';
+    offer.approvedBy = req.user.id;
+    offer.approvedAt = new Date();
+    await offer.save();
+
+    // Populate vendor info for broadcast
+    await offer.populate('vendor', 'name');
+
+    // Broadcast approval event to vendor and students
+    io.to(`vendor:${offer.vendor._id}`).emit('vendor:notification:offer-approved', {
+      offerId: offer._id,
+      title: offer.title,
+      message: `Your offer "${offer.title}" has been approved`,
+      timestamp: new Date(),
+      status: 'success'
+    });
+
+    // Notify all students about the newly approved offer
+    io.emit('student:offer-approved', {
+      offerId: offer._id,
+      title: offer.title,
+      discount: offer.discount,
+      discountType: offer.discountType,
+      category: offer.category,
+      timestamp: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: 'Offer approved successfully',
+      data: { offerId: offer._id, title: offer.title, approvalStatus: offer.approvalStatus }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve offer',
+      error: error.message,
+    });
+  }
+});
+
+// Reject an offer
+router.post('/offers/:offerId/reject', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { rejectionReason } = req.body;
+    
+    const offer = await Offer.findById(req.params.offerId);
+    
+    if (!offer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Offer not found',
+      });
+    }
+
+    if (offer.approvalStatus === 'rejected') {
+      return res.status(400).json({
+        success: false,
+        message: 'Offer is already rejected',
+      });
+    }
+
+    offer.approvalStatus = 'rejected';
+    offer.approvedBy = req.user.id;
+    offer.approvedAt = new Date();
+    await offer.save();
+
+    // Populate vendor info for broadcast
+    await offer.populate('vendor', 'name');
+
+    // Broadcast rejection event to vendor
+    io.to(`vendor:${offer.vendor._id}`).emit('vendor:notification:offer-rejected', {
+      offerId: offer._id,
+      title: offer.title,
+      message: `Your offer "${offer.title}" has been rejected`,
+      reason: rejectionReason || 'Rejected by admin',
+      timestamp: new Date(),
+      status: 'error'
+    });
+
+    res.json({
+      success: true,
+      message: 'Offer rejected successfully',
+      data: { offerId: offer._id, title: offer.title, approvalStatus: offer.approvalStatus }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject offer',
+      error: error.message,
+    });
+  }
+});
+
+// ========== VENDOR MANAGEMENT ENDPOINTS ==========
+
+// Get all vendors
+router.get('/vendors', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { page = 1, limit = 10, approvalStatus = 'all', verificationStatus = 'all', search = '' } = req.query;
+    const skip = (page - 1) * limit;
+
+    let filter = {};
+    if (approvalStatus !== 'all') {
+      filter.approvalStatus = approvalStatus;
+    }
+    if (verificationStatus !== 'all') {
+      filter.verificationStatus = verificationStatus;
+    }
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { businessName: { $regex: search, $options: 'i' } },
+      ];
+    }
+
+    const vendors = await Vendor.find(filter)
+      .select('-password')
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    const total = await Vendor.countDocuments(filter);
+
+    res.json({
+      success: true,
+      data: vendors,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch vendors',
+      error: error.message,
+    });
+  }
+});
+
+// Get vendor details by ID
+router.get('/vendors/:vendorId/details', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.vendorId)
+      .select('-password')
+      .populate('offers', 'title isActive createdAt')
+      .populate('coupons', 'code discount createdAt');
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: 'Vendor not found' });
+    }
+
+    // Count active and pending offers
+    const offers = await Offer.find({ vendor: req.params.vendorId });
+    const activeOffers = offers.filter(o => o.isActive).length;
+    const pendingOffers = offers.filter(o => !o.isActive).length;
+
+    res.json({
+      success: true,
+      data: {
+        ...vendor.toObject(),
+        numberOfOffersActive: activeOffers,
+        numberOfOffersPending: pendingOffers,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to fetch vendor details', error: error.message });
+  }
+});
+
+// Get vendor stats
+router.get('/vendors/stats', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const total = await Vendor.countDocuments();
+    const approved = await Vendor.countDocuments({ approvalStatus: 'approved' });
+    const pending = await Vendor.countDocuments({ approvalStatus: 'pending' });
+    const rejected = await Vendor.countDocuments({ approvalStatus: 'rejected' });
+    const verified = await Vendor.countDocuments({ verificationStatus: 'verified' });
+    const suspended = await Vendor.countDocuments({ isSuspended: true });
+
+    res.json({
+      success: true,
+      data: {
+        totalVendors: total,
+        approvedVendors: approved,
+        pendingVendors: pending,
+        rejectedVendors: rejected,
+        verifiedVendors: verified,
+        suspendedVendors: suspended,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch vendor stats',
+      error: error.message,
+    });
+  }
+});
+
+// Approve vendor
+router.put('/vendors/:vendorId/approve', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { remarks = '' } = req.body;
+
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.vendorId,
+      {
+        approvalStatus: 'approved',
+        approvalRemarks: remarks,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found',
+      });
+    }
+
+    // Broadcast real-time notification
+    io.emit('admin:vendor-approval:updated', {
+      vendorId: vendor._id,
+      vendorName: vendor.name,
+      status: 'approved',
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: 'Vendor approved successfully',
+      data: vendor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to approve vendor',
+      error: error.message,
+    });
+  }
+});
+
+// Reject vendor
+router.put('/vendors/:vendorId/reject', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { remarks = '' } = req.body;
+
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.vendorId,
+      {
+        approvalStatus: 'rejected',
+        approvalRemarks: remarks,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found',
+      });
+    }
+
+    // Broadcast real-time notification
+    io.emit('admin:vendor-approval:updated', {
+      vendorId: vendor._id,
+      vendorName: vendor.name,
+      status: 'rejected',
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: 'Vendor rejected successfully',
+      data: vendor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to reject vendor',
+      error: error.message,
+    });
+  }
+});
+
+// Suspend vendor
+router.put('/vendors/:vendorId/suspend', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { reason = '' } = req.body;
+
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.vendorId,
+      {
+        isSuspended: true,
+        suspensionReason: reason,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found',
+      });
+    }
+
+    // Broadcast real-time notification
+    io.emit('admin:vendor-suspension:updated', {
+      vendorId: vendor._id,
+      vendorName: vendor.name,
+      suspended: true,
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: 'Vendor suspended successfully',
+      data: vendor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to suspend vendor',
+      error: error.message,
+    });
+  }
+});
+
+// Activate vendor
+router.put('/vendors/:vendorId/activate', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.vendorId,
+      {
+        isSuspended: false,
+        suspensionReason: '',
+        updatedAt: new Date(),
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found',
+      });
+    }
+
+    // Broadcast real-time notification
+    io.emit('admin:vendor-suspension:updated', {
+      vendorId: vendor._id,
+      vendorName: vendor.name,
+      suspended: false,
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: 'Vendor activated successfully',
+      data: vendor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to activate vendor',
+      error: error.message,
+    });
+  }
+});
+
+// Verify vendor documents
+router.put('/vendors/:vendorId/verify', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const { verificationStatus = 'verified', remarks = '' } = req.body;
+
+    if (!['verified', 'pending', 'rejected'].includes(verificationStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification status',
+      });
+    }
+
+    const vendor = await Vendor.findByIdAndUpdate(
+      req.params.vendorId,
+      {
+        verificationStatus,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    ).select('-password');
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found',
+      });
+    }
+
+    // Broadcast real-time notification
+    io.emit('admin:vendor-verification:updated', {
+      vendorId: vendor._id,
+      vendorName: vendor.name,
+      verificationStatus,
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: `Vendor ${verificationStatus} successfully`,
+      data: vendor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify vendor',
+      error: error.message,
+    });
+  }
+});
+
+// Get single vendor details
+router.get('/vendors/:vendorId', authenticateToken, authorizeRole('admin'), async (req, res) => {
+  try {
+    const vendor = await Vendor.findById(req.params.vendorId).select('-password');
+
+    if (!vendor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: vendor,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch vendor',
+      error: error.message,
     });
   }
 });

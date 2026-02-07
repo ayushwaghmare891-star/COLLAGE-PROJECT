@@ -2,6 +2,7 @@ import express from 'express';
 import Coupon from '../models/Coupon.js';
 import { authenticateToken, authorizeRole } from '../middleware/auth.js';
 import { generateCouponCode } from '../utils/helpers.js';
+import { io } from '../server.js';
 
 const router = express.Router();
 
@@ -226,22 +227,54 @@ router.delete('/:id', authenticateToken, authorizeRole('vendor'), async (req, re
   }
 });
 
-// Redeem coupon
+// Redeem coupon - ONLY APPROVED STUDENTS CAN REDEEM
 router.post('/redeem', authenticateToken, authorizeRole('student'), async (req, res) => {
   try {
     const { code } = req.body;
 
+    // Import Student model to check approval status
+    const Student = (await import('../models/Student.js')).default;
+
+    // Check if student is approved by admin
+    const student = await Student.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Student not found' 
+      });
+    }
+
+    // CRITICAL CHECK: Only approved students can redeem coupons
+    if (student.approvalStatus !== 'approved') {
+      return res.status(403).json({ 
+        success: false,
+        message: 'You must be approved by admin before redeeming coupons',
+        requiredStatus: 'approved',
+        currentStatus: student.approvalStatus,
+        helpMessage: 'Your account is awaiting admin approval. Please check your verification status.'
+      });
+    }
+
     const coupon = await Coupon.findOne({ code });
     if (!coupon) {
-      return res.status(404).json({ message: 'Coupon not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Coupon not found' 
+      });
     }
 
     if (!coupon.isActive) {
-      return res.status(400).json({ message: 'This coupon is no longer active' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'This coupon is no longer active' 
+      });
     }
 
     if (coupon.maxRedemptions && coupon.currentRedemptions >= coupon.maxRedemptions) {
-      return res.status(400).json({ message: 'This coupon has reached max redemptions' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'This coupon has reached max redemptions' 
+      });
     }
 
     // Check if already redeemed
@@ -249,7 +282,10 @@ router.post('/redeem', authenticateToken, authorizeRole('student'), async (req, 
       r => r.student.toString() === req.user.id
     );
     if (alreadyRedeemed) {
-      return res.status(400).json({ message: 'You have already redeemed this coupon' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'You have already redeemed this coupon' 
+      });
     }
 
     coupon.redeemedBy.push({
@@ -260,9 +296,39 @@ router.post('/redeem', authenticateToken, authorizeRole('student'), async (req, 
 
     await coupon.save();
 
-    res.json({ message: 'Coupon redeemed successfully', coupon });
+    // Emit real-time event to vendor about coupon redemption
+    try {
+      io.to(`vendor:${coupon.vendor.toString()}`).emit('vendor:coupon:claimed', {
+        couponId: coupon._id,
+        couponCode: coupon.code,
+        studentId: req.user.id,
+        studentName: student.name,
+        studentEmail: student.email,
+        discount: coupon.discount,
+        discountType: coupon.discountType,
+        totalClaims: coupon.currentRedemptions,
+        maxRedemptions: coupon.maxRedemptions,
+        claimedAt: new Date(),
+        timestamp: new Date(),
+        message: `${student.name} claimed your coupon: ${coupon.code}`
+      });
+
+      console.log(`📢 Notifying vendor ${coupon.vendor} about coupon claim - Total claims: ${coupon.currentRedemptions}`);
+    } catch (error) {
+      console.error('Error emitting coupon claim event:', error);
+    }
+
+    res.json({ 
+      success: true,
+      message: 'Coupon redeemed successfully', 
+      coupon 
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to redeem coupon', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to redeem coupon', 
+      error: error.message 
+    });
   }
 });
 

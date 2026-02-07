@@ -66,6 +66,16 @@ const offerSchema = new mongoose.Schema({
     enum: ['active', 'pending', 'rejected', 'expired'],
     default: 'active',
   },
+  approvalStatus: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'pending',
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+  },
+  approvedAt: Date,
   image: String,
   termsAndConditions: String,
   savedBy: [

@@ -407,20 +407,26 @@ export function VendorDashboardOverview() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-6 hover:shadow-lg transition-all">
           <h3 className="font-semibold text-sm opacity-90">Average Order Value</h3>
-          <p className="text-3xl font-bold mt-3">₹8,450</p>
+          <p className="text-3xl font-bold mt-3">
+            {overview && overview.totalRedemptions > 0
+              ? `₹${Math.round(overview.totalDiscount / overview.totalRedemptions).toLocaleString('en-IN')}`
+              : '₹0'}
+          </p>
           <p className="text-sm opacity-75 mt-2">Across all transactions</p>
         </div>
 
         <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-6 hover:shadow-lg transition-all">
           <h3 className="font-semibold text-sm opacity-90">Discounts Given</h3>
-          <p className="text-3xl font-bold mt-3">₹8,920</p>
+          <p className="text-3xl font-bold mt-3">
+            ₹{overview?.totalDiscount ? overview.totalDiscount.toLocaleString('en-IN') : '0'}
+          </p>
           <p className="text-sm opacity-75 mt-2">Total student discounts</p>
         </div>
 
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-6 hover:shadow-lg transition-all">
-          <h3 className="font-semibold text-sm opacity-90">Verification Rate</h3>
-          <p className="text-3xl font-bold mt-3">94.2%</p>
-          <p className="text-sm opacity-75 mt-2">Students verified</p>
+          <h3 className="font-semibold text-sm opacity-90">Redemptions</h3>
+          <p className="text-3xl font-bold mt-3">{overview?.totalRedemptions || 0}</p>
+          <p className="text-sm opacity-75 mt-2">Total offer redemptions</p>
         </div>
       </div>
     </main>

@@ -17,15 +17,8 @@ import { AdminDirectLogin } from './components/admin-direct-login'
 import { UnifiedLoginPage } from './components/unified-login-page'
 import { VendorSignupPage } from './components/vendor/vendor-signup'
 import { VendorLoginPage } from './components/vendor/vendor-login'
-import { VendorDashboard } from './components/vendor/vendor-dashboard'
+import { VendorAppShell } from './components/vendor/VendorAppShell'
 import { VendorProductDetail } from './components/vendor/vendor-product-detail'
-import { VendorProductsPage } from './components/vendor/vendor-products-page'
-import { VendorStudentDiscountsPage } from './components/vendor/vendor-student-discounts-page'
-import { VendorStudentDiscountVerificationPage } from './components/vendor/vendor-student-discount-verification-page'
-import { VendorStudentOrderPage } from './components/vendor/vendor-student-order-page'
-import { VendorAnalyticsAndReportsPage } from './components/vendor/vendor-analytics-and-reports-page'
-import { VendorNotificationsPage } from './components/vendor/vendor-notifications-page'
-import { VendorProfileSettingsPage } from './components/vendor/vendor-profile-settings-page'
 export default function App() {
   const location = useLocation()
   const [isTransitioning, setIsTransitioning] = useState(false)
@@ -39,7 +32,7 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [location.pathname])
 
-  const isDashboard = location.pathname.includes('/student/dashboard') || location.pathname.includes('/student/discount') || location.pathname.includes('/student/categories') || location.pathname.includes('/student/coupons') || location.pathname.includes('/student/save-offers') || location.pathname.includes('/student/notifications') || location.pathname.includes('/student/profile') || location.pathname.includes('/student/help-support') || location.pathname.includes('/admin/') || location.pathname.includes('/vendor/dashboard') || location.pathname.includes('/vendor/products') || location.pathname.includes('/vendor/studentdiscounts') || location.pathname.includes('/vendor/studentdiscountverification') || location.pathname.includes('/vendor/studentorder') || location.pathname.includes('/vendor/analyticsandreports') || location.pathname.includes('/vendor/notifications') || location.pathname.includes('/vendor/profilesettings')
+  const isDashboard = location.pathname.includes('/student/dashboard') || location.pathname.includes('/student/discount') || location.pathname.includes('/student/categories') || location.pathname.includes('/student/coupons') || location.pathname.includes('/student/save-offers') || location.pathname.includes('/student/notifications') || location.pathname.includes('/student/profile') || location.pathname.includes('/student/help-support') || location.pathname.includes('/admin/') || location.pathname.includes('/vendor/')
 
   return (
     <div className={`min-h-screen ${isDashboard ? 'bg-gray-50' : 'bg-black'} overflow-hidden`}>
@@ -64,15 +57,8 @@ export default function App() {
           <Route path="/student/help-support" element={<HelpSupportPage />} />
           <Route path="/vendor/signup" element={<VendorSignupPage />} />
           <Route path="/vendor/login" element={<VendorLoginPage />} />
-          <Route path="/vendor/dashboard" element={<VendorDashboard />} />
-          <Route path="/vendor/products" element={<VendorProductsPage />} />
-          <Route path="/vendor/studentdiscounts" element={<VendorStudentDiscountsPage />} />
-          <Route path="/vendor/studentdiscountverification" element={<VendorStudentDiscountVerificationPage />} />
-          <Route path="/vendor/studentorder" element={<VendorStudentOrderPage />} />
-          <Route path="/vendor/analyticsandreports" element={<VendorAnalyticsAndReportsPage />} />
-          <Route path="/vendor/notifications" element={<VendorNotificationsPage />} />
-          <Route path="/vendor/profilesettings" element={<VendorProfileSettingsPage />} />
           <Route path="/vendor/product" element={<VendorProductDetail />} />
+          <Route path="/vendor/*" element={<VendorAppShell />} />
           <Route path="/studentdashboard" element={<StudentDashboardPage />} />
           <Route path="/dashboard" element={<StudentDashboardPage />} />
           <Route path="/login" element={<UnifiedLoginPage />} />

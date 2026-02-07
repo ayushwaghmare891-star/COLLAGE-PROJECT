@@ -9,8 +9,9 @@ import { MyCoupons } from './my-coupons';
 import { SavedOffers } from './saved-offers';
 import { NotificationsPanel } from './notifications-panel';
 import { HelpSupport } from './help-support';
-import { getStudentDiscounts, getActiveCoupons } from '../../lib/studentAPI';
+import { getStudentDiscounts, getActiveCoupons, getVerificationStatus } from '../../lib/studentAPI';
 import { useAuthStore } from '../../stores/authStore';
+import { useRealtimeUpdates } from '../../hooks/useRealtimeUpdates';
 
 // Mock data types
 interface Discount {
@@ -97,7 +98,9 @@ export function StudentDashboardPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [savedOffers, setSavedOffers] = useState<SavedOffer[]>([]);
   const [totalSaved, setTotalSaved] = useState(0);
-  const { token, user } = useAuthStore();
+  const [approvalStatus, setApprovalStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [claimLoading, setClaimLoading] = useState<string | null>(null);
+  const { token, user, updateUser } = useAuthStore();
 
   const studentProfile: StudentProfile = {
     name: user?.name || 'Student',
@@ -110,19 +113,71 @@ export function StudentDashboardPage() {
     verificationStatus: 'verified',
   };
 
+  // Listen for student approval updates from admin
+  useRealtimeUpdates(
+    (update) => {
+      // When student status is updated by admin (approval/rejection)
+      if (update.student) {
+        // Update the user in auth store with new approval status
+        updateUser({
+          approvalStatus: update.student.approvalStatus || update.approvalStatus,
+        });
+        setApprovalStatus(update.student.approvalStatus || update.approvalStatus);
+      }
+    }
+  );
+
   useEffect(() => {
     if (token) {
+      fetchApprovalStatus();
       fetchDiscounts();
       fetchCoupons();
       fetchSavedOffers();
+
+      // Refresh approval status every 30 seconds to catch admin updates
+      const approvalStatusInterval = setInterval(() => {
+        fetchApprovalStatus();
+      }, 30000);
+
+      return () => clearInterval(approvalStatusInterval);
     }
   }, [token]);
+
+  const fetchApprovalStatus = async () => {
+    try {
+      // Fetch latest approval status from backend
+      const status = await getVerificationStatus();
+      if (status?.approvalStatus) {
+        setApprovalStatus(status.approvalStatus as 'pending' | 'approved' | 'rejected');
+        // Also update the auth store
+        updateUser({
+          approvalStatus: status.approvalStatus,
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching approval status:', err);
+      // Fall back to user store if fetch fails
+      if (user?.approvalStatus) {
+        setApprovalStatus(user.approvalStatus as 'pending' | 'approved' | 'rejected');
+      }
+    }
+  };
 
   const fetchDiscounts = async () => {
     try {
       const response = await getStudentDiscounts();
       if (response.offers) {
-        setDiscounts(response.offers);
+        const transformedDiscounts = response.offers.map((offer: any) => ({
+          id: offer._id || offer.id || Math.random().toString(),
+          brandName: offer.vendor?.businessName || offer.vendor?.name || offer.brandName || 'Brand',
+          discount: offer.discountPercentage || offer.discount || 0,
+          description: offer.description || '',
+          expiryDate: offer.endDate ? new Date(offer.endDate).toLocaleDateString('en-GB') : 'No expiry',
+          category: offer.category || 'General',
+          isExclusive: offer.isExclusive || false,
+          isLimitedTime: offer.isLimitedTime || false,
+        }));
+        setDiscounts(transformedDiscounts);
       }
     } catch (err) {
       console.error('Error fetching discounts:', err);
@@ -134,7 +189,17 @@ export function StudentDashboardPage() {
     try {
       const response = await getActiveCoupons();
       if (response.coupons) {
-        setCoupons(response.coupons);
+        const transformedCoupons = response.coupons.map((coupon: any) => ({
+          id: coupon._id || coupon.id || Math.random().toString(),
+          code: coupon.code || '',
+          brand: coupon.brand || 'Brand',
+          discount: coupon.discount || coupon.discountPercentage || 0,
+          expiryDate: coupon.expiryDate || 'No expiry',
+          status: coupon.status || 'unused',
+          claimedDate: coupon.claimedDate || new Date().toLocaleDateString('en-GB'),
+          usageDate: coupon.usageDate,
+        }));
+        setCoupons(transformedCoupons);
       }
     } catch (err) {
       console.error('Error fetching coupons:', err);
@@ -186,8 +251,32 @@ export function StudentDashboardPage() {
     setSavedOfferIds(newSaved);
   };
 
-  const handleClaimDiscount = (id: string) => {
-    alert(`Discount ${id} claimed successfully!`);
+  const handleClaimDiscount = async (id: string) => {
+    try {
+      setClaimLoading(id);
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/student/offers/redeem`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ offerId: id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to claim offer');
+      }
+
+      alert(`✅ Offer claimed successfully! Your redemption code: ${data.redemptionCode}`);
+    } catch (err: any) {
+      alert(`❌ ${err.message || 'Failed to claim offer'}`);
+      console.error('Claim error:', err);
+    } finally {
+      setClaimLoading(null);
+    }
   };
 
   const handleMarkAsRead = (id: string) => {
@@ -222,6 +311,8 @@ export function StudentDashboardPage() {
                   key={discount.id}
                   {...discount}
                   isSaved={savedOfferIds.has(discount.id)}
+                  isApproved={true}
+                  isLoading={claimLoading === discount.id}
                   onSave={handleSaveOffer}
                   onClaim={handleClaimDiscount}
                 />
@@ -241,6 +332,8 @@ export function StudentDashboardPage() {
                   key={discount.id}
                   {...discount}
                   isSaved={savedOfferIds.has(discount.id)}
+                  isApproved={true}
+                  isLoading={claimLoading === discount.id}
                   onSave={handleSaveOffer}
                   onClaim={handleClaimDiscount}
                 />
@@ -252,7 +345,10 @@ export function StudentDashboardPage() {
         return (
           <>
             <h1 className="text-3xl font-bold text-gray-900 mb-6">My Coupons</h1>
-            <MyCoupons coupons={coupons} />
+            <MyCoupons 
+              coupons={coupons} 
+              isApproved={approvalStatus === 'approved'}
+            />
           </>
         )
       case 'saved':
@@ -337,6 +433,8 @@ export function StudentDashboardPage() {
                   key={discount.id}
                   {...discount}
                   isSaved={savedOfferIds.has(discount.id)}
+                  isApproved={approvalStatus === 'approved'}
+                  isLoading={claimLoading === discount.id}
                   onSave={handleSaveOffer}
                   onClaim={handleClaimDiscount}
                 />

@@ -13,7 +13,8 @@ const router = express.Router();
 router.get('/active', async (req, res) => {
   try {
     const { category, search } = req.query;
-    let filter = { isActive: true };
+    // Only show active and approved offers to students
+    let filter = { isActive: true, status: 'active', approvalStatus: 'approved' };
 
     if (category && category !== 'all') {
       filter.category = category;
@@ -39,9 +40,10 @@ router.get('/active', async (req, res) => {
 // Get single offer by ID
 router.get('/detail/:id', async (req, res) => {
   try {
-    const offer = await Offer.findById(req.params.id).populate('vendor', 'name businessName businessCategory');
+    // Only return approved offers to students
+    const offer = await Offer.findOne({ _id: req.params.id, status: 'active', approvalStatus: 'approved' }).populate('vendor', 'name businessName businessCategory');
     if (!offer) {
-      return res.status(404).json({ message: 'Offer not found' });
+      return res.status(404).json({ message: 'Offer not found or not approved' });
     }
     res.json(offer);
   } catch (error) {
@@ -52,9 +54,10 @@ router.get('/detail/:id', async (req, res) => {
 // Get offer by code
 router.get('/code/:code', async (req, res) => {
   try {
-    const offer = await Offer.findOne({ code: req.params.code }).populate('vendor', 'name businessName');
+    // Only return approved offers to students
+    const offer = await Offer.findOne({ code: req.params.code, status: 'active', approvalStatus: 'approved' }).populate('vendor', 'name businessName');
     if (!offer) {
-      return res.status(404).json({ message: 'Offer not found' });
+      return res.status(404).json({ message: 'Offer not found or not approved' });
     }
     res.json(offer);
   } catch (error) {
@@ -124,6 +127,7 @@ router.post('/create', upload.single('image'), authenticateToken, authorizeRole(
       termsAndConditions,
       image: imageUrl,
       status: 'pending', // Set to pending for admin approval
+      approvalStatus: 'pending', // Pending admin approval
       isActive: false, // Deactivate until approved
     });
 
@@ -199,17 +203,46 @@ router.delete('/delete/:id', authenticateToken, authorizeRole('vendor'), async (
 // Toggle offer status
 router.patch('/toggle/:id', authenticateToken, authorizeRole('vendor'), async (req, res) => {
   try {
-    const offer = await Offer.findById(req.params.id);
+    const offer = await Offer.findById(req.params.id).populate('vendor', 'name businessName');
     if (!offer) {
       return res.status(404).json({ message: 'Offer not found' });
     }
 
-    if (offer.vendor.toString() !== req.user.id) {
+    if (offer.vendor._id.toString() !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized to toggle this offer' });
     }
 
     offer.isActive = !offer.isActive;
     await offer.save();
+
+    // If offer is active and approved, notify students
+    if (offer.isActive && offer.status === 'active') {
+      io.emit('student:offer-updated', {
+        offerId: offer._id,
+        vendorId: offer.vendor._id,
+        vendorName: offer.vendor.businessName || offer.vendor.name,
+        title: offer.title,
+        discount: offer.discount,
+        discountType: offer.discountType,
+        category: offer.category,
+        isActive: offer.isActive,
+        timestamp: new Date(),
+        notificationType: 'offer-update',
+        message: `📢 ${offer.vendor.businessName || offer.vendor.name} activated offer: ${offer.title}`
+      });
+    } else if (!offer.isActive && offer.status === 'active') {
+      // Notify students that offer is deactivated
+      io.emit('student:offer-updated', {
+        offerId: offer._id,
+        vendorId: offer.vendor._id,
+        vendorName: offer.vendor.businessName || offer.vendor.name,
+        title: offer.title,
+        isActive: offer.isActive,
+        timestamp: new Date(),
+        notificationType: 'offer-update',
+        message: `📢 ${offer.vendor.businessName || offer.vendor.name} deactivated offer: ${offer.title}`
+      });
+    }
 
     res.json({ message: 'Offer status updated', offer });
   } catch (error) {
@@ -217,22 +250,43 @@ router.patch('/toggle/:id', authenticateToken, authorizeRole('vendor'), async (r
   }
 });
 
-// Redeem offer
+// Redeem offer - ONLY APPROVED STUDENTS CAN REDEEM
 router.post('/redeem', authenticateToken, authorizeRole('student'), async (req, res) => {
   try {
     const { offerId } = req.body;
 
+    // Import Student model to check approval status
+    const Student = (await import('../models/Student.js')).default;
+
+    // Get student details
+    const student = await Student.findById(req.user.id);
+    if (!student) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Student not found' 
+      });
+    }
+
     const offer = await Offer.findById(offerId);
     if (!offer) {
-      return res.status(404).json({ message: 'Offer not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'Offer not found' 
+      });
     }
 
     if (!offer.isActive) {
-      return res.status(400).json({ message: 'This offer is no longer active' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'This offer is no longer active' 
+      });
     }
 
     if (offer.maxRedemptions && offer.currentRedemptions >= offer.maxRedemptions) {
-      return res.status(400).json({ message: 'This offer has reached max redemptions' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'This offer has reached max redemptions' 
+      });
     }
 
     // Check if already redeemed
@@ -240,7 +294,10 @@ router.post('/redeem', authenticateToken, authorizeRole('student'), async (req, 
       r => r.student.toString() === req.user.id
     );
     if (alreadyRedeemed) {
-      return res.status(400).json({ message: 'You have already redeemed this offer' });
+      return res.status(400).json({ 
+        success: false,
+        message: 'You have already redeemed this offer' 
+      });
     }
 
     const redemptionCode = generateCouponCode();
@@ -254,13 +311,37 @@ router.post('/redeem', authenticateToken, authorizeRole('student'), async (req, 
 
     await offer.save();
 
+    // Emit real-time event to vendor that a student claimed their coupon
+    try {
+      io.to(`vendor:${offer.vendor.toString()}`).emit('vendor:coupon-claimed', {
+        offerId: offer._id,
+        offerTitle: offer.title,
+        studentId: req.user.id,
+        studentName: student.name || 'A student',
+        totalClaims: offer.currentRedemptions,
+        claimedByStudents: offer.redemptions.length,
+        redemptionCode,
+        timestamp: new Date(),
+        notificationType: 'coupon-claim',
+        message: `🎉 A student claimed your coupon "${offer.title}"! Total claims: ${offer.currentRedemptions}`
+      });
+      console.log(`✅ Real-time event sent to vendor ${offer.vendor} for coupon claim`);
+    } catch (ioError) {
+      console.warn(`⚠️ Failed to emit real-time notification for coupon claim:`, ioError.message);
+    }
+
     res.json({
+      success: true,
       message: 'Offer redeemed successfully',
       redemptionCode,
       offer,
     });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to redeem offer', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to redeem offer', 
+      error: error.message 
+    });
   }
 });
 
@@ -315,7 +396,7 @@ router.get('/admin/pending', authenticateToken, authorizeRole('admin'), async (r
 // Admin: Approve an offer
 router.post('/admin/approve/:offerId', authenticateToken, authorizeRole('admin'), async (req, res) => {
   try {
-    const offer = await Offer.findById(req.params.offerId);
+    const offer = await Offer.findById(req.params.offerId).populate('vendor', 'name businessName');
     if (!offer) {
       return res.status(404).json({ message: 'Offer not found' });
     }
@@ -323,6 +404,31 @@ router.post('/admin/approve/:offerId', authenticateToken, authorizeRole('admin')
     offer.status = 'active';
     offer.isActive = true;
     await offer.save();
+
+    // Emit real-time notification to all students (non-blocking)
+    try {
+      if (io) {
+        io.emit('student:new-offer', {
+          offerId: offer._id,
+          vendorId: offer.vendor._id,
+          vendorName: offer.vendor.businessName || offer.vendor.name,
+          title: offer.title,
+          discount: offer.discount,
+          discountType: offer.discountType,
+          category: offer.category,
+          description: offer.description,
+          image: offer.image,
+          startDate: offer.startDate,
+          endDate: offer.endDate,
+          timestamp: new Date(),
+          notificationType: 'offer',
+          message: `🎉 New Offer: ${offer.title} from ${offer.vendor.businessName || offer.vendor.name}`
+        });
+        console.log(`✅ Offer ${offer._id} approved and students notified`);
+      }
+    } catch (ioError) {
+      console.warn(`⚠️ Failed to emit real-time notification for offer ${offer._id}:`, ioError.message);
+    }
 
     res.json({
       message: 'Offer approved successfully and is now visible to students',

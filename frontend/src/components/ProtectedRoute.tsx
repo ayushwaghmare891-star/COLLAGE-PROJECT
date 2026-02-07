@@ -6,7 +6,7 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   // Add your authentication logic here (e.g., check localStorage, context, etc.)
-  const isSignedIn = !!localStorage.getItem('authToken')
+  const isSignedIn = !!localStorage.getItem('auth_token')
 
   if (!isSignedIn) {
     return <Navigate to="/student/login" replace />

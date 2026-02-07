@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UsersIcon, TagIcon, ActivityIcon, UserCheckIcon, AlertCircleIcon } from 'lucide-react';
+import { UsersIcon, TagIcon, ActivityIcon, UserCheckIcon, AlertCircleIcon, StoreIcon } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 
 interface ActiveUsersStats {
@@ -13,6 +13,12 @@ interface ActiveUsersStats {
 interface OffersStats {
   activeOffers: number;
   changePercentage: string;
+}
+
+interface VendorStats {
+  totalVendors: number;
+  liveVendors: number;
+  offlineVendors: number;
 }
 
 interface PendingOffersData {
@@ -33,6 +39,7 @@ export function AdminDashboard() {
   const { token } = useAuthStore();
   const [activeUsersStats, setActiveUsersStats] = useState<ActiveUsersStats | null>(null);
   const [offersStats, setOffersStats] = useState<OffersStats | null>(null);
+  const [vendorStats, setVendorStats] = useState<VendorStats | null>(null);
   const [pendingOffers, setPendingOffers] = useState<PendingOffersData['pendingOffers']>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -45,6 +52,7 @@ export function AdminDashboard() {
         await Promise.all([
           fetchActiveUsers(),
           fetchOffersStats(),
+          fetchVendorStats(),
           fetchPendingOffers()
         ]);
       } catch (err) {
@@ -95,6 +103,23 @@ export function AdminDashboard() {
     }
   };
 
+  const fetchVendorStats = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/admin/vendor-stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setVendorStats(data);
+      }
+    } catch (error: any) {
+      console.log('Note: Could not fetch vendor stats');
+    }
+  };
+
   const fetchPendingOffers = async () => {
     try {
       const response = await fetch('http://localhost:5000/api/offers/admin/pending?limit=5', {
@@ -116,6 +141,7 @@ export function AdminDashboard() {
   const stats = [
     { label: 'Total Users', value: activeUsersStats?.totalUsers || '0', icon: UsersIcon, bgGradient: 'from-indigo-600 to-indigo-700', iconColor: 'text-indigo-100', change: `${activeUsersStats?.onlineUsers || 0} online` },
     { label: 'Total Students', value: activeUsersStats?.students.total || '0', icon: UsersIcon, bgGradient: 'from-blue-600 to-cyan-600', iconColor: 'text-blue-100', change: `${activeUsersStats?.students.online || 0} online now` },
+    { label: 'Total Vendors', value: vendorStats?.totalVendors || '0', icon: StoreIcon, bgGradient: 'from-violet-600 to-purple-600', iconColor: 'text-violet-100', change: `${vendorStats?.liveVendors || 0} live` },
     { label: 'Online Now', value: activeUsersStats?.onlineUsers || '0', icon: UserCheckIcon, bgGradient: 'from-emerald-600 to-teal-600', iconColor: 'text-emerald-100', change: '🟢 Live users' },
     { label: 'Active Offers', value: offersStats?.activeOffers || '-', icon: TagIcon, bgGradient: 'from-orange-600 to-red-600', iconColor: 'text-orange-100', change: offersStats?.changePercentage || '-' },
     { label: 'Pending Approval', value: pendingCount, icon: AlertCircleIcon, bgGradient: 'from-yellow-600 to-orange-600', iconColor: 'text-yellow-100', change: 'Awaiting review' },
@@ -215,6 +241,31 @@ export function AdminDashboard() {
                   <p className="text-xs text-gray-600">{activeUsersStats?.onlineUsers || 0} currently active</p>
                 </div>
               </div>
+
+              {/* Vendors */}
+              {vendorStats && (
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center">
+                      <StoreIcon className="w-4 h-4 text-white" />
+                    </div>
+                    <p className="font-semibold text-gray-900 text-sm">Vendors</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-2xl font-bold text-gray-900">{vendorStats.liveVendors || '0'}</span>
+                      <span className="text-xs text-gray-600 ml-2">live now</span>
+                    </div>
+                    <div className="w-full bg-gray-300 rounded-full h-2">
+                      <div 
+                        className="bg-gradient-to-r from-violet-500 to-purple-500 h-2 rounded-full" 
+                        style={{ width: `${((vendorStats.liveVendors || 0) / (vendorStats.totalVendors || 1)) * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-600">{vendorStats.totalVendors || 0} total vendors</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

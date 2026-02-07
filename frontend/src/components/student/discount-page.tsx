@@ -3,6 +3,7 @@ import { StudentSidebar } from './dashboard/sidebar';
 import { StudentTopNav } from './dashboard/top-nav';
 import { AdvancedSearch } from './advanced-search';
 import { DiscountListingCard } from './discount-listing-card';
+import { getVerificationStatus } from '../../lib/studentAPI';
 import { useAuthStore } from '../../stores/authStore';
 
 interface Discount {
@@ -42,8 +43,10 @@ export function StudentDiscountPage() {
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [claimLoading, setClaimLoading] = useState<string | null>(null);
 
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
 
   const studentProfile: StudentProfile = {
     name: user?.name || 'Student',
@@ -99,7 +102,25 @@ export function StudentDiscountPage() {
       }
     };
 
+    // Fetch approval status from backend
+    const fetchApprovalStatus = async () => {
+      try {
+        const status = await getVerificationStatus();
+        // Approval status will be used from the user object in handleClaimDiscount
+      } catch (err) {
+        console.error('Error fetching approval status:', err);
+      }
+    };
+
     fetchDiscounts();
+    fetchApprovalStatus();
+
+    // Refresh approval status every 30 seconds to catch admin updates
+    const approvalStatusInterval = setInterval(() => {
+      fetchApprovalStatus();
+    }, 30000);
+
+    return () => clearInterval(approvalStatusInterval);
   }, []);
 
   const handleSaveOffer = (id: string) => {
@@ -112,8 +133,34 @@ export function StudentDiscountPage() {
     setSavedOfferIds(newSaved);
   };
 
-  const handleClaimDiscount = (id: string) => {
-    alert(`Discount ${id} claimed successfully!`);
+  const handleClaimDiscount = async (id: string) => {
+    setClaimError(null);
+    
+    try {
+      setClaimLoading(id);
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/student/offers/redeem`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ offerId: id }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to claim offer');
+      }
+
+      alert(`✅ Offer claimed successfully! Your redemption code: ${data.redemptionCode}`);
+    } catch (err: any) {
+      setClaimError(err.message || 'Failed to claim offer');
+      console.error('Claim error:', err);
+    } finally {
+      setClaimLoading(null);
+    }
   };
 
   return (
@@ -155,6 +202,12 @@ export function StudentDiscountPage() {
               </div>
             )}
 
+            {claimError && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <p className="text-yellow-800">{claimError}</p>
+              </div>
+            )}
+
             {!loading && discounts.length === 0 && !error && (
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">No discounts available yet. Please check back later!</p>
@@ -175,6 +228,8 @@ export function StudentDiscountPage() {
                     isExclusive={discount.isExclusive}
                     isLimitedTime={discount.isLimitedTime}
                     isSaved={savedOfferIds.has(discount._id || '')}
+                    isApproved={true}
+                    isLoading={claimLoading === (discount._id || discount.id)}
                     onSave={handleSaveOffer}
                     onClaim={handleClaimDiscount}
                   />

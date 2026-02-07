@@ -14,7 +14,7 @@ const createAdmin = async () => {
     const hashedPassword = await hashPassword('Ayush@143');
 
     // Check if admin already exists
-    const existingAdmin = await Admin.findOne({ email: 'ayushwaghmare415@gmail.com' });
+    const existingAdmin = await Admin.findOne({ email: 'dakshkoli17@gmail.com' });
     if (existingAdmin) {
       console.log('⚠️  Admin already exists with this email');
       console.log(`📧 Email: ${existingAdmin.email}`);
@@ -26,7 +26,7 @@ const createAdmin = async () => {
 
     const admin = await Admin.create({
       name: 'Admin User',
-      email: 'ayushwaghmare415@gmail.com',
+      email: 'dakshkoli17@gmail.com',
       password: hashedPassword,
       role: 'admin',
     });

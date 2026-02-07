@@ -1,6 +1,6 @@
 import { API_BASE_URL, getHeaders } from './api';
 
-const STUDENT_API_BASE = `${API_BASE_URL}/student/dashboard`;
+const STUDENT_API_BASE = `${API_BASE_URL}/student`;
 const COUPON_API_BASE = `${API_BASE_URL}/coupons`;
 
 // Get student dashboard

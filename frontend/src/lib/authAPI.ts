@@ -50,7 +50,7 @@ export const studentSignup = async (userData: SignupData): Promise<AuthResponse>
 
     // Store token in localStorage
     if (data.token) {
-      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
     }
 
@@ -98,7 +98,7 @@ export const studentLogin = async (email: string, password: string): Promise<Aut
 
     // Store token in localStorage
     if (data.token) {
-      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
     }
 
@@ -147,7 +147,7 @@ export const unifiedLogin = async (email: string, password: string, role: 'stude
 
     // Store token in localStorage
     if (data.token) {
-      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
     }
 
@@ -204,7 +204,7 @@ export const checkServerHealth = async () => {
  */
 export const getCurrentUser = async () => {
   try {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('auth_token');
     if (!token) {
       throw new Error('No authentication token found');
     }
@@ -241,7 +241,7 @@ export const getCurrentUser = async () => {
  * Clear local storage
  */
 export const logout = () => {
-  localStorage.removeItem('authToken');
+  localStorage.removeItem('auth_token');
   localStorage.removeItem('user');
   return { success: true, message: 'Logged out successfully' };
 };
@@ -250,14 +250,14 @@ export const logout = () => {
  * Get Auth Token
  */
 export const getAuthToken = () => {
-  return localStorage.getItem('authToken');
+  return localStorage.getItem('auth_token');
 };
 
 /**
  * Is User Authenticated
  */
 export const isAuthenticated = () => {
-  return !!localStorage.getItem('authToken');
+  return !!localStorage.getItem('auth_token');
 };
 
 /**

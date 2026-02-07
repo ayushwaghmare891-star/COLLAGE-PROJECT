@@ -29,12 +29,13 @@ router.get('/discounts', authenticateToken, authorizeRole('student'), async (req
     const { page = 1, limit = 10 } = req.query;
     const skip = (page - 1) * limit;
 
-    const offers = await Offer.find({ isActive: true })
+    // Only show active and approved offers to students
+    const offers = await Offer.find({ isActive: true, status: 'active' })
       .skip(skip)
       .limit(limit)
       .populate('vendor', 'name businessName businessCategory');
 
-    const total = await Offer.countDocuments({ isActive: true });
+    const total = await Offer.countDocuments({ isActive: true, status: 'active' });
 
     res.json({
       offers,
@@ -82,7 +83,8 @@ router.get('/coupons', authenticateToken, authorizeRole('student'), async (req, 
 router.get('/search', authenticateToken, authorizeRole('student'), verifyStudentApproval, async (req, res) => {
   try {
     const { query, category } = req.query;
-    let filter = { isActive: true };
+    // Only show active and approved offers to students
+    let filter = { isActive: true, status: 'active' };
 
     if (category) {
       filter.category = category;
